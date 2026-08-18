@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection with strict Server-Side Subscription Entitlement rules
+    match /users/{userId} {
+      allow read: if isAuthenticated() || isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && 
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isPremium', 'subscriptionTier', 'subscriptionEndsAt', 'customerId']));
+      allow delete: if isOwner(userId);
+    }
+
+    // Articles collection (Publicly readable, writeable by authenticated/guest users)
+    match /articles/{articleId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAuthenticated();
+    }
+
+    // User history
+    match /user_history/{historyId} {
+      allow read, write: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read, write, delete: if true; // allow seamless client-side experience for guests as well
+    }
+
+    // Bookmarks
+    match /bookmarks/{bookmarkId} {
+      allow read, write, delete: if true;
+    }
+
+    // Listening logs for streak calculation
+    match /listening_logs/{logId} {
+      allow read, write, delete: if true;
+    }
+  }
+}

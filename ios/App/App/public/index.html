@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="tr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>VOX | Ses Odaklı Haber & İçe Aktarım</title>
+    <script>
+      (function() {
+        try {
+          var savedTheme = localStorage.getItem('vox_theme');
+          if (savedTheme === 'light') {
+            document.documentElement.classList.add('light');
+            document.documentElement.classList.remove('dark');
+          } else if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+          } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            document.documentElement.classList.add('light');
+            document.documentElement.classList.remove('dark');
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-7ZaD7GwV.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CYGTFkY2.css">
+  </head>
+  <body class="bg-surface text-on-surface selection:bg-primary/30 antialiased">
+    <div id="root"></div>
+  </body>
+</html>
+
+

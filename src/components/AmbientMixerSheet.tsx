@@ -74,20 +74,45 @@ export const AmbientMixerSheet: React.FC<AmbientMixerSheetProps> = ({
       }
     });
 
-    // 3. MediaSession Lock Screen Sync
+    // 3. MediaSession Lock Screen Sync & Hardware Control Handlers
     const anyActive = channels.some(c => c.active && c.volume > 0);
-    if (anyActive && typeof navigator !== 'undefined' && 'mediaSession' in navigator && typeof MediaMetadata !== 'undefined') {
-      const activeTitles = channels.filter(c => c.active && c.volume > 0).map(c => c.name).join(', ');
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: 'VOX Odaklanma',
-        artist: activeTitles || 'Doğa & Ambiyans',
-        album: 'VOX Odaklanma & Ambiyans',
-        artwork: [
-          { src: '/apple-touch-icon.png', sizes: '512x512', type: 'image/png' },
-          { src: '/logo.png', sizes: '512x512', type: 'image/png' }
-        ]
-      });
-      navigator.mediaSession.playbackState = 'playing';
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && typeof MediaMetadata !== 'undefined') {
+      if (anyActive) {
+        const activeTitles = channels.filter(c => c.active && c.volume > 0).map(c => c.name).join(', ');
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'VOX Odaklanma & Ambiyans',
+          artist: activeTitles || 'Doğa ve Odak Sesleri',
+          album: 'VOX Ambient Sounds & Focus Loop',
+          artwork: [
+            { src: '/apple-touch-icon.png', sizes: '512x512', type: 'image/png' },
+            { src: '/logo.png', sizes: '512x512', type: 'image/png' }
+          ]
+        });
+        navigator.mediaSession.playbackState = 'playing';
+
+        try {
+          navigator.mediaSession.setActionHandler('pause', () => {
+            woodRainSynth.suspend();
+            channels.forEach(ch => {
+              if (ch.active) onToggleChannel(ch.id);
+            });
+            navigator.mediaSession.playbackState = 'paused';
+          });
+          navigator.mediaSession.setActionHandler('stop', () => {
+            woodRainSynth.stop();
+            channels.forEach(ch => {
+              if (ch.active) onToggleChannel(ch.id);
+            });
+            navigator.mediaSession.playbackState = 'none';
+          });
+          navigator.mediaSession.setActionHandler('play', () => {
+            woodRainSynth.resume();
+            navigator.mediaSession.playbackState = 'playing';
+          });
+        } catch (e) {}
+      } else if (navigator.mediaSession.playbackState === 'playing' && !woodRainSynth) {
+        navigator.mediaSession.playbackState = 'none';
+      }
     }
   }, [channels]);
 

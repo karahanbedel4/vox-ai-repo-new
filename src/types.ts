@@ -16,6 +16,8 @@ export interface UserProfile {
   weeklyMinutes: number;
   totalArticlesRead: number;
   totalListenedMinutes: number;
+  pushToken?: string;
+  pushTokenUpdatedAt?: string;
   createdAt?: string;
 }
 
@@ -87,4 +89,14 @@ export interface AmbientChannel {
   active: boolean;
   isCustomUrl?: boolean;
   customUrl?: string;
+}
+
+export interface SharedLinkItem {
+  id: string;
+  url: string;
+  title?: string;
+  sourceType: SourceType;
+  platformName: 'YouTube' | 'X / Twitter' | 'Web' | 'PDF / Belge' | 'Metin';
+  thumbnail?: string;
+  addedAt: string;
 }

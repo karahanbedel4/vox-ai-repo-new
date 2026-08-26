@@ -15,10 +15,22 @@ import {
   AmbientConflictModal 
 } from './components/AmbientControls';
 
-import { Article, UserProfile, TabType } from './types';
+import { Article, UserProfile, TabType, SharedLinkItem, SourceType } from './types';
 import { useSubscription } from './hooks/useSubscription';
 import { PaywallModal } from './components/PaywallModal';
 import { AuthModal } from './components/AuthModal';
+import { ShareIncomingModal } from './components/ShareIncomingModal';
+import { ShareQueueModal } from './components/ShareQueueModal';
+import { 
+  getSharedLinksQueue, 
+  addSharedLinkToQueue, 
+  removeSharedLinkFromQueue, 
+  clearSharedLinksQueue, 
+  convertItemToArticle, 
+  parseSharedContent,
+  MAX_QUEUE_LIMIT
+} from './lib/shareService';
+import { App as CapApp } from '@capacitor/app';
 import { 
   auth, 
   ensureAuthUser, 
@@ -42,7 +54,9 @@ import { safeApiFetch } from './lib/api';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { AppTrackingTransparency } from '@capgo/capacitor-app-tracking-transparency';
+import { Bell, X } from 'lucide-react';
 import { initPushNotifications } from './lib/pushNotifications';
+import { initAdMob, showBannerAd, hideBannerAd } from './lib/admob';
 
 export default function App() {
   const [onboarded, setOnboarded] = useState<boolean>(() => {
@@ -99,8 +113,22 @@ export default function App() {
   ]);
 
   const [topNotificationText, setTopNotificationText] = useState<string | null>(null);
+  const [pushToast, setPushToast] = useState<{ title: string; body: string; data?: any } | null>(null);
   const [pendingPlayArticle, setPendingPlayArticle] = useState<Article | null>(null);
   const [isAmbientConflictModalOpen, setIsAmbientConflictModalOpen] = useState<boolean>(false);
+
+  // Share & Content Conversion Queue State
+  const [sharedQueue, setSharedQueue] = useState<SharedLinkItem[]>(() => getSharedLinksQueue());
+  const [isShareQueueOpen, setIsShareQueueOpen] = useState<boolean>(false);
+  const [incomingShareItem, setIncomingShareItem] = useState<{
+    url: string;
+    title?: string;
+    sourceType: SourceType;
+    platformName: SharedLinkItem['platformName'];
+    thumbnail?: string;
+  } | null>(null);
+  const [isShareIncomingOpen, setIsShareIncomingOpen] = useState<boolean>(false);
+  const [isConvertingQueue, setIsConvertingQueue] = useState<boolean>(false);
 
   const activeAmbientChannels = ambientChannels.filter(c => c.active && c.volume > 0);
   const isAmbientActive = activeAmbientChannels.length > 0;
@@ -344,27 +372,44 @@ export default function App() {
     }
   }, []);
 
-  // Request Apple App Tracking Transparency (ATT) permission on iOS native devices
+  // Request Apple App Tracking Transparency (ATT) permission & Initialize AdMob on native devices
   useEffect(() => {
-    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
+    if (Capacitor.isNativePlatform()) {
       const promptTimer = setTimeout(async () => {
+        let isAuthorized = true;
+
         try {
-          const statusRes = await AppTrackingTransparency.getStatus();
-          if (statusRes.status === 'notDetermined') {
-            await AppTrackingTransparency.requestPermission();
+          if (Capacitor.getPlatform() === 'ios') {
+            const statusRes = await AppTrackingTransparency.getStatus();
+            console.log('[ATT] Initial status:', statusRes.status);
+            
+            if (statusRes.status === 'notDetermined') {
+              const requestRes = await AppTrackingTransparency.requestPermission();
+              console.log('[ATT] User response status:', requestRes.status);
+              isAuthorized = requestRes.status === 'authorized';
+            } else {
+              isAuthorized = statusRes.status === 'authorized';
+            }
           }
         } catch (err) {
-          try {
-            await AppTrackingTransparency.requestPermission();
-          } catch (e) {
-            console.warn('AppTrackingTransparency request error:', e);
+          console.warn('[ATT] Permission flow warning:', err);
+        } finally {
+          // STRICT APPLE COMPLIANCE: Initialize AdMob SDK ONLY AFTER ATT flow completes
+          console.log('[ATT -> AdMob] Initializing AdMob (Tracking Authorized:', isAuthorized, ')');
+          await initAdMob();
+
+          if (!user?.isPremium) {
+            await showBannerAd(false);
           }
         }
       }, 700);
 
-      return () => clearTimeout(promptTimer);
+      return () => {
+        clearTimeout(promptTimer);
+        hideBannerAd();
+      };
     }
-  }, []);
+  }, [user?.isPremium]);
 
   // Firebase Cloud Messaging (FCM) & Apple APNs Push Notifications Setup
   useEffect(() => {
@@ -375,15 +420,19 @@ export default function App() {
     initPushNotifications(
       user.uid,
       (notification) => {
-        // Foreground push received - show in-app banner
+        // Foreground push received - show rich in-app push toast
         const title = notification.title || 'VOX Bildirim';
         const body = notification.body || '';
-        setTopNotificationText(`${title}: ${body}`);
-        setTimeout(() => setTopNotificationText(null), 6000);
+        setPushToast({
+          title,
+          body,
+          data: notification.data
+        });
+        setTimeout(() => setPushToast(null), 7000);
       },
       (action) => {
         // Notification action clicked (Background / Killed state)
-        const data = action.notification.data;
+        const data = action.notification?.data;
         if (data?.articleId) {
           const targetArticle = articles.find(a => a.id === data.articleId);
           if (targetArticle) {
@@ -408,6 +457,61 @@ export default function App() {
       }
     };
   }, [user?.uid, articles]);
+
+  // Share Sheet / URL Scheme Deep Link Integration (vox:// and web query params)
+  useEffect(() => {
+    // 1. Check initial query params on web/preview
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const incomingUrl = searchParams.get('share_url') || searchParams.get('shared_url') || searchParams.get('url') || searchParams.get('text');
+      if (incomingUrl) {
+        const parsed = parseSharedContent(incomingUrl);
+        if (parsed) {
+          setIncomingShareItem(parsed);
+          setIsShareIncomingOpen(true);
+        }
+        // Clean URL to avoid duplicate triggers on reload
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+
+    // 2. Capacitor App URL Listener for native iOS / Android share intents
+    let appUrlListener: any = null;
+    if (Capacitor.isNativePlatform()) {
+      CapApp.addListener('appUrlOpen', (data) => {
+        try {
+          if (!data?.url) return;
+          let targetUrl = data.url;
+          if (targetUrl.startsWith('vox://')) {
+            const pathAndQuery = targetUrl.replace('vox://', '');
+            if (pathAndQuery.includes('url=')) {
+              const parsedQuery = new URLSearchParams(pathAndQuery.split('?')[1] || pathAndQuery);
+              targetUrl = parsedQuery.get('url') || parsedQuery.get('text') || pathAndQuery;
+            } else if (pathAndQuery.startsWith('http://') || pathAndQuery.startsWith('https://')) {
+              targetUrl = pathAndQuery;
+            }
+          }
+
+          const parsed = parseSharedContent(decodeURIComponent(targetUrl));
+          if (parsed) {
+            setIncomingShareItem(parsed);
+            setIsShareIncomingOpen(true);
+          }
+        } catch (err) {
+          console.warn('Error handling deep link share URL:', err);
+        }
+      }).then((listener) => {
+        appUrlListener = listener;
+      });
+    }
+
+    return () => {
+      if (appUrlListener && typeof appUrlListener.remove === 'function') {
+        appUrlListener.remove();
+      }
+    };
+  }, []);
 
   // Lock Screen & MediaSession API Integration for Focus / Ambient sounds
   useEffect(() => {
@@ -712,6 +816,164 @@ export default function App() {
     await handleRefreshUser();
   };
 
+  // Share & Content Conversion Queue Handlers
+  const handleConvertSharedNow = async (item: {
+    url: string;
+    title?: string;
+    sourceType: SourceType;
+    platformName: SharedLinkItem['platformName'];
+    thumbnail?: string;
+  }) => {
+    setIsShareIncomingOpen(false);
+
+    // Check Quota
+    if (!subscription.isPremium) {
+      if (subscription.isGuest && subscription.dailyQuotaUsed >= 1) {
+        subscription.setIsAuthModalOpen(true);
+        return;
+      }
+      if (!subscription.isGuest && subscription.dailyQuotaUsed >= subscription.dailyQuotaLimit) {
+        subscription.setIsPaywallOpen(true);
+        return;
+      }
+    }
+
+    setTopNotificationText(`Yapay Zeka ${item.platformName} içeriğini podcaste dönüştürüyor...`);
+    try {
+      if (subscription.incrementQuota) {
+        await subscription.incrementQuota();
+      }
+
+      const newArticle = await convertItemToArticle(item);
+      await handleImportSuccess(newArticle);
+
+      // Remove from queue if it was present
+      setSharedQueue(prev => {
+        const next = prev.filter(x => x.url !== item.url);
+        try {
+          appStorage.setItem('vox_shared_links_queue', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      setPushToast({
+        title: 'Podcast Hazır!',
+        body: `"${newArticle.title}" sesli bülteni oluşturuldu ve dinlemeye hazır.`
+      });
+      setTimeout(() => setPushToast(null), 6000);
+
+      // Instantly start playback and switch to Listen tab
+      handlePlayArticle(newArticle);
+      setActiveTab('listen');
+    } catch (err: any) {
+      console.error('Error converting shared item:', err);
+      setPushToast({
+        title: 'Dönüştürme Hatası',
+        body: err?.message || 'İçerik podcaste dönüştürülürken bir hata oluştu.'
+      });
+      setTimeout(() => setPushToast(null), 6000);
+    } finally {
+      setTopNotificationText(null);
+    }
+  };
+
+  const handleSaveIncomingToQueue = (item: {
+    url: string;
+    title?: string;
+    sourceType: SourceType;
+    platformName: SharedLinkItem['platformName'];
+    thumbnail?: string;
+  }) => {
+    const res = addSharedLinkToQueue(item);
+    setIsShareIncomingOpen(false);
+    if (res.success) {
+      setSharedQueue(res.queue);
+      setPushToast({
+        title: 'Havuzda Saklandı',
+        body: `"${item.title || item.url}" dönüştürme havuzuna eklendi (${res.queue.length}/${MAX_QUEUE_LIMIT}).`
+      });
+      setTimeout(() => setPushToast(null), 5000);
+    } else {
+      setPushToast({
+        title: 'Havuza Eklenemedi',
+        body: res.error || 'Link kuyruğa eklenemedi.'
+      });
+      setTimeout(() => setPushToast(null), 5000);
+    }
+  };
+
+  const handleDeleteQueueItem = (id: string) => {
+    const updated = removeSharedLinkFromQueue(id);
+    setSharedQueue(updated);
+  };
+
+  const handleClearQueue = () => {
+    clearSharedLinksQueue();
+    setSharedQueue([]);
+  };
+
+  const handleAddNewLinkToQueue = (item: {
+    url: string;
+    title?: string;
+    sourceType: SourceType;
+    platformName: SharedLinkItem['platformName'];
+    thumbnail?: string;
+  }) => {
+    const res = addSharedLinkToQueue(item);
+    if (res.success) {
+      setSharedQueue(res.queue);
+    }
+    return res;
+  };
+
+  const handleBatchConvertQueue = async () => {
+    if (sharedQueue.length === 0) return;
+    setIsConvertingQueue(true);
+    setTopNotificationText(`Kuyruktaki ${sharedQueue.length} içerik sırayla podcaste dönüştürülüyor...`);
+
+    let firstConvertedArticle: Article | null = null;
+    const remainingItems = [...sharedQueue];
+
+    for (let i = 0; i < sharedQueue.length; i++) {
+      const item = sharedQueue[i];
+      try {
+        if (!subscription.isPremium && subscription.incrementQuota) {
+          await subscription.incrementQuota();
+        }
+        const converted = await convertItemToArticle(item);
+        await handleImportSuccess(converted);
+        if (!firstConvertedArticle) {
+          firstConvertedArticle = converted;
+        }
+
+        const idx = remainingItems.findIndex(x => x.id === item.id);
+        if (idx !== -1) {
+          remainingItems.splice(idx, 1);
+          setSharedQueue([...remainingItems]);
+          try {
+            appStorage.setItem('vox_shared_links_queue', JSON.stringify(remainingItems));
+          } catch {}
+        }
+      } catch (err: any) {
+        console.error(`Failed to convert queue item ${item.url}:`, err);
+      }
+    }
+
+    setIsConvertingQueue(false);
+    setTopNotificationText(null);
+    setIsShareQueueOpen(false);
+
+    if (firstConvertedArticle) {
+      setPushToast({
+        title: 'Toplu Dönüştürme Tamamlandı',
+        body: 'Kuyruktaki içerikler başarıyla podcaste dönüştürüldü.'
+      });
+      setTimeout(() => setPushToast(null), 6000);
+      handlePlayArticle(firstConvertedArticle);
+      setActiveTab('listen');
+    }
+  };
+
   const handleTabChange = (tab: TabType) => {
     setIsAmbientMixerOpen(false);
     setActiveTab(tab);
@@ -723,6 +985,47 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-on-surface font-sans selection:bg-primary/30 antialiased overflow-x-hidden pt-safe pb-safe pl-safe pr-safe">
+      {/* Foreground Push Notification Interactive Banner */}
+      {pushToast && (
+        <div 
+          onClick={() => {
+            if (pushToast.data?.articleId) {
+              const target = articles.find(a => a.id === pushToast.data.articleId);
+              if (target) {
+                handlePlayArticle(target);
+                setActiveTab('listen');
+              }
+            } else if (pushToast.data?.tab && ['read', 'listen', 'library', 'profile'].includes(pushToast.data.tab)) {
+              setActiveTab(pushToast.data.tab as TabType);
+            }
+            setPushToast(null);
+          }}
+          className="fixed top-3 left-3 right-3 sm:left-auto sm:right-6 sm:w-96 z-50 bg-[#161c24]/95 border border-primary/40 backdrop-blur-xl shadow-2xl rounded-2xl p-3.5 flex items-start gap-3 cursor-pointer animate-in fade-in slide-in-from-top-3 duration-300"
+        >
+          <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
+            <Bell className="w-4 h-4 text-primary animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1.5">
+              <h4 className="text-xs font-bold text-white truncate">{pushToast.title}</h4>
+              <span className="text-[10px] text-neutral-400 font-medium">VOX</span>
+            </div>
+            <p className="text-xs text-neutral-300 mt-0.5 line-clamp-2 leading-relaxed">{pushToast.body}</p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPushToast(null);
+            }}
+            className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Kapat"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Notification Toast Banner when Ambient Popup Closes */}
       <AmbientNotificationBanner
         notificationText={topNotificationText}
@@ -741,6 +1044,8 @@ export default function App() {
         onOpenPaywall={() => subscription.setIsPaywallOpen(true)}
         onOpenAuthModal={() => subscription.setIsAuthModalOpen(true)}
         streakInfo={streakInfo}
+        queueCount={sharedQueue.length}
+        onOpenQueue={() => setIsShareQueueOpen(true)}
       />
 
       {/* Main Tab View */}
@@ -795,6 +1100,11 @@ export default function App() {
             dailyQuotaLimit={subscription.dailyQuotaLimit}
             onOpenPaywall={() => subscription.setIsPaywallOpen(true)}
             onOpenAuthModal={() => subscription.setIsAuthModalOpen(true)}
+            sharedQueue={sharedQueue}
+            onOpenQueueModal={() => setIsShareQueueOpen(true)}
+            onConvertQueueItem={handleConvertSharedNow}
+            onDeleteQueueItem={handleDeleteQueueItem}
+            onBatchConvertQueue={handleBatchConvertQueue}
           />
         )}
 
@@ -822,6 +1132,29 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Incoming Share Prompt Modal (VOX Share Extension / Deep Link) */}
+      <ShareIncomingModal
+        isOpen={isShareIncomingOpen}
+        onClose={() => setIsShareIncomingOpen(false)}
+        sharedItem={incomingShareItem}
+        onConvertNow={handleConvertSharedNow}
+        onSaveToQueue={handleSaveIncomingToQueue}
+        queueCount={sharedQueue.length}
+      />
+
+      {/* Share & Content Conversion Queue Modal */}
+      <ShareQueueModal
+        isOpen={isShareQueueOpen}
+        onClose={() => setIsShareQueueOpen(false)}
+        queue={sharedQueue}
+        onConvertItem={handleConvertSharedNow}
+        onBatchConvertAll={handleBatchConvertQueue}
+        onDeleteItem={handleDeleteQueueItem}
+        onClearQueue={handleClearQueue}
+        onAddNewLink={handleAddNewLinkToQueue}
+        isConverting={isConvertingQueue}
+      />
 
       {/* Auth Login / Register Modal for Guests */}
       <AuthModal

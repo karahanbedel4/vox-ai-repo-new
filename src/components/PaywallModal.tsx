@@ -232,16 +232,17 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
               </div>
 
               {/* Clear Pricing Information Notice */}
-              <div className="bg-surface-container-high/30 border border-white/5 rounded-xl p-2.5 text-[11px] text-on-surface-variant text-center">
+              <div className="bg-surface-container-high/30 border border-white/5 rounded-xl p-2.5 text-[11px] text-on-surface-variant text-center space-y-1">
                 {selectedPlan === 'monthly' && (
-                  <span>Aylık <strong>49.99 ₺</strong>. İstediğiniz zaman iptal edebilirsiniz, dönem sonunda otomatik yenilenir.</span>
+                  <p>Aylık <strong>49.99 ₺</strong>. Abonelik iptal edilmediği sürece her ay otomatik yenilenir.</p>
                 )}
                 {selectedPlan === 'yearly' && (
-                  <span>7 gün ücretsiz deneme, ardından yıllık <strong>399.99 ₺</strong> (aylık ~33.30 ₺). İstediğiniz zaman iptal edebilirsiniz.</span>
+                  <p>7 gün ücretsiz deneme, ardından yıllık <strong>399.99 ₺</strong> (aylık ~33.30 ₺). Abonelik iptal edilmediği sürece yıllık yenilenir.</p>
                 )}
                 {selectedPlan === 'lifetime' && (
-                  <span>Ömür Boyu <strong>999.99 ₺</strong> tek seferlik ödeme. Otomatik yenileme veya ek ücret yoktur.</span>
+                  <p>Ömür Boyu <strong>999.99 ₺</strong> tek seferlik ödeme. Otomatik yenileme yoktur.</p>
                 )}
+                <p className="text-[10px] text-white/50">Abonelik iptal edilmediği sürece dönem sonunda otomatik yenilenir.</p>
               </div>
             </div>
           </div>
@@ -273,65 +274,48 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
               )}
             </button>
 
-            {/* Present RevenueCat Native Paywall UI option */}
-            {onOpenNativePaywall && (
-              <button
-                id="native-paywall-btn"
-                onClick={handleNativePaywall}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 text-on-surface border border-white/10 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-                <span>RevenueCat Native Paywall Ekranını Aç</span>
-              </button>
-            )}
-
-            {/* Restore Purchases & Customer Center Row */}
-            <div className="flex items-center justify-between text-xs text-on-surface-variant pt-1 px-1">
+            {/* Restore Purchases Button */}
+            <div className="flex items-center justify-center pt-0.5">
               <button
                 id="restore-purchases-btn"
                 onClick={handleRestorePurchases}
                 disabled={isLoading}
-                className="hover:text-primary underline font-semibold flex items-center gap-1.5 transition-colors text-white/90"
+                className="text-xs text-neutral-300 hover:text-white underline font-semibold flex items-center justify-center gap-1.5 transition-colors py-1.5 px-3 rounded-lg hover:bg-white/5 disabled:opacity-50"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Satın Almaları Geri Yükle</span>
+                <span>Satın Almaları Geri Yükle (Restore Purchases)</span>
               </button>
-
-              {onOpenCustomerCenter && (
-                <button
-                  id="customer-center-btn"
-                  onClick={() => onOpenCustomerCenter()}
-                  className="hover:text-white underline font-semibold flex items-center gap-1.5 text-primary transition-colors"
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Abonelik Yönetimi</span>
-                </button>
-              )}
             </div>
 
             {/* Apple Guideline 3.1.2 Mandatory Terms of Use & Privacy Policy Links */}
             <div className="pt-2 border-t border-white/10 text-center space-y-1.5">
               <p className="text-[10px] leading-relaxed text-on-surface-variant/80">
-                Abonelikler, cari dönemin bitiminden 24 saat önce Apple ID Ayarlarınızdan kapatılmadığı sürece otomatik yenilenir.
+                Abonelik iptal edilmediği sürece yenilenir. Cari dönemin bitiminden 24 saat önce Apple ID Ayarlarınızdan kapatabilirsiniz.
               </p>
-              <div className="flex items-center justify-center gap-3 text-xs text-primary">
-                <button
-                  id="terms-of-use-btn"
-                  type="button"
-                  onClick={() => setActiveLegalDoc('eula')}
-                  className="hover:underline font-semibold"
+              <div className="flex items-center justify-center gap-3 text-xs text-neutral-400">
+                <a
+                  id="terms-of-use-link"
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveLegalDoc('eula');
+                  }}
+                  className="hover:text-white hover:underline text-[11px] transition-colors"
                 >
                   Kullanım Koşulları (Terms of Use)
-                </button>
+                </a>
                 <span className="text-white/30">•</span>
-                <button
-                  id="privacy-policy-btn"
-                  type="button"
-                  onClick={() => setActiveLegalDoc('privacy')}
-                  className="hover:underline font-semibold"
+                <a
+                  id="privacy-policy-link"
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveLegalDoc('privacy');
+                  }}
+                  className="hover:text-white hover:underline text-[11px] transition-colors"
                 >
                   Gizlilik Politikası (Privacy Policy)
-                </button>
+                </a>
               </div>
             </div>
 

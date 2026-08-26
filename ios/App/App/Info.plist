@@ -50,7 +50,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>VOX, sesli komutlar ve sesli haber arama özellikleri için mikrofona erişim ister.</string>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>VOX, size daha alakalı ve kişiselleştirilmiş reklamlar ile haber akışı sponsorlukları sunabilmek için cihaz verilerinizi anonim olarak kullanma izni ister.</string>
+	<string>VOX, size daha alakalı haber sponsorlukları ve reklamlar sunabilmek için cihaz verilerinizi anonim olarak kullanma izni ister.</string>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
@@ -60,8 +62,11 @@
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.vox.audio.share</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>vox</string>
 				<string>com.googleusercontent.apps.890842275987-ukel5gkqsojkuk24n5kbikjau8hqpr1j</string>
 			</array>
 		</dict>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { Sparkles, Flame } from 'lucide-react';
+import { Sparkles, Flame, Share2, Layers } from 'lucide-react';
 import { StreakInfo } from '../lib/streakService';
 
 interface HeaderProps {
@@ -13,6 +13,8 @@ interface HeaderProps {
   onOpenPaywall?: () => void;
   onOpenAuthModal?: () => void;
   streakInfo?: StreakInfo | null;
+  queueCount?: number;
+  onOpenQueue?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -24,7 +26,9 @@ export const Header: React.FC<HeaderProps> = ({
   isGuest = false,
   onOpenPaywall,
   onOpenAuthModal,
-  streakInfo
+  streakInfo,
+  queueCount = 0,
+  onOpenQueue
 }) => {
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -93,6 +97,23 @@ export const Header: React.FC<HeaderProps> = ({
             <span>YÜKSELT</span>
           </button>
         ) : null}
+
+        {/* Share & Conversion Queue Button */}
+        {onOpenQueue && (
+          <button
+            id="header-open-queue-btn"
+            onClick={onOpenQueue}
+            title="Dönüştürme Havuzu & Kuyruk"
+            className="relative p-1.5 rounded-full bg-surface-variant hover:bg-white/10 border border-card-border hover:border-primary text-neutral-300 hover:text-primary transition-all active:scale-95 flex items-center justify-center"
+          >
+            <Layers className="w-4 h-4" />
+            {queueCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-black font-extrabold text-[9px] flex items-center justify-center shadow-sm animate-pulse">
+                {queueCount}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* User Name Badge */}
         <div 

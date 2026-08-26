@@ -17,7 +17,7 @@ import {
 import { Browser } from '@capacitor/browser';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { SignInWithApple, SignInWithAppleResponse, SignInWithAppleOptions } from '@capacitor-community/apple-sign-in';
 import { 
   getFirestore, 
@@ -72,60 +72,6 @@ export const appleProvider = new OAuthProvider('apple.com');
 appleProvider.addScope('email');
 appleProvider.addScope('name');
 
-// Initialize GoogleAuth plugin if native
-if (Capacitor.isNativePlatform()) {
-  try {
-    if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
-      (GoogleAuth.initialize as any)({
-        clientId: '890842275987-ukel5gkqsojkuk24n5kbikjau8hqpr1j.apps.googleusercontent.com',
-        serverClientId: firebaseConfig.oAuthClientId || '890842275987-rd9l3ups221qge9sna5ne9bskdab5ubh.apps.googleusercontent.com',
-        scopes: ['profile', 'email'],
-        grantOfflineAccess: true,
-      });
-    }
-  } catch (err) {
-    console.warn('GoogleAuth native init notice:', err);
-  }
-
-  // Handle deep links when Safari redirects back to the iOS app
-  App.addListener('appUrlOpen', async (data) => {
-    console.log('iOS App deep link triggered:', data?.url);
-    if (data?.url && (data.url.includes('googleusercontent') || data.url.includes('oauth2redirect') || data.url.includes('id_token='))) {
-      try {
-        await Browser.close();
-      } catch (e) {
-        // Ignore if browser already closed
-      }
-
-      try {
-        let rawParams = '';
-        if (data.url.includes('#')) {
-          rawParams = data.url.split('#')[1];
-        } else if (data.url.includes('?')) {
-          rawParams = data.url.split('?')[1];
-        }
-
-        const params = new URLSearchParams(rawParams);
-        const idToken = params.get('id_token');
-        const accessToken = params.get('access_token');
-
-        if (idToken) {
-          console.log('Google Auth tokens received from iOS Safari deep link!');
-          const credential = GoogleAuthProvider.credential(idToken, accessToken || undefined);
-          const userCredential = await signInWithCredential(auth, credential);
-
-          if (userCredential.user) {
-            await syncUserProfile(userCredential.user);
-            window.dispatchEvent(new CustomEvent('vox_auth_changed', { detail: userCredential.user }));
-          }
-        }
-      } catch (err) {
-        console.error('Error signing in with Google OAuth deep link tokens:', err);
-      }
-    }
-  });
-}
-
 // Automatic listener for Google Auth redirect return on page reload
 if (auth) {
   getRedirectResult(auth)
@@ -140,50 +86,28 @@ if (auth) {
     });
 }
 
-// Initialize GoogleAuth early for Native Capacitor environment
-if (Capacitor.isNativePlatform()) {
-  try {
-    GoogleAuth.initialize({
-      clientId: '890842275987-ukel5gkqsojkuk24n5kbikjau8hqpr1j.apps.googleusercontent.com',
-      serverClientId: '890842275987-rd9l3ups221qge9sna5ne9bskdab5ubh.apps.googleusercontent.com',
-      scopes: ['profile', 'email'],
-      grantOfflineAccess: true,
-    } as any);
-  } catch (err) {
-    console.warn('GoogleAuth early initialize notice:', err);
-  }
-}
-
-// Unified Google Sign In Helper (Native iOS/Android & Web)
+// Unified Google Sign In Helper (Native iOS/Android via @capacitor-firebase/authentication & Web)
 export async function signInWithGoogle() {
-  const isIos = Capacitor.getPlatform() === 'ios';
   const isNative = Capacitor.isNativePlatform();
 
-  if (isIos || isNative) {
-    console.log('iOS / Mobile native environment detected for Google Auth...');
-    
-    // Ensure native plugin is initialized
+  if (isNative) {
+    console.log('[Native Auth] Using @capacitor-firebase/authentication for Google Sign-In...');
     try {
-      await GoogleAuth.initialize({
-        clientId: '890842275987-ukel5gkqsojkuk24n5kbikjau8hqpr1j.apps.googleusercontent.com',
-        serverClientId: '890842275987-rd9l3ups221qge9sna5ne9bskdab5ubh.apps.googleusercontent.com',
-        scopes: ['profile', 'email'],
-        grantOfflineAccess: true,
-      } as any);
-    } catch (initErr) {
-      console.warn('GoogleAuth.initialize notice:', initErr);
-    }
+      const result = await FirebaseAuthentication.signInWithGoogle();
+      const idToken = result.credential?.idToken;
+      const accessToken = result.credential?.accessToken;
 
-    try {
-      const googleUser = await GoogleAuth.signIn();
-      const idToken = googleUser?.authentication?.idToken || (googleUser as any)?.idToken;
-      const accessToken = googleUser?.authentication?.accessToken || (googleUser as any)?.accessToken;
-      
       if (!idToken) {
+        // In case FirebaseAuthentication already handled auth state natively
+        if (auth.currentUser) {
+          await syncUserProfile(auth.currentUser);
+          window.dispatchEvent(new CustomEvent('vox_auth_changed', { detail: auth.currentUser }));
+          return { user: auth.currentUser };
+        }
         throw new Error('Google idToken alınamadı.');
       }
 
-      const credential = GoogleAuthProvider.credential(idToken, accessToken);
+      const credential = GoogleAuthProvider.credential(idToken, accessToken || undefined);
       const res = await signInWithCredential(auth, credential);
       if (res?.user) {
         await syncUserProfile(res.user);
@@ -191,9 +115,15 @@ export async function signInWithGoogle() {
       }
       return res;
     } catch (nativeErr: any) {
-      console.error('Native GoogleAuth plugin error:', nativeErr);
+      console.error('[Native Auth] Google Sign-In error:', nativeErr);
       const errStr = String(nativeErr?.message || nativeErr || '').toLowerCase();
-      if (nativeErr?.code === '12501' || errStr.includes('canceled') || errStr.includes('cancelled')) {
+      if (
+        nativeErr?.code === '12501' || 
+        nativeErr?.code === '10' ||
+        errStr.includes('canceled') || 
+        errStr.includes('cancelled') || 
+        errStr.includes('user_cancel')
+      ) {
         console.info('Native Google Auth cancelled by user.');
         throw new Error('Giriş işlemi iptal edildi.');
       }
@@ -298,9 +228,9 @@ export async function signOutApp() {
   }
   if (Capacitor.isNativePlatform()) {
     try {
-      await GoogleAuth.signOut();
+      await FirebaseAuthentication.signOut();
     } catch (gErr) {
-      console.warn('GoogleAuth signOut notice:', gErr);
+      console.warn('FirebaseAuthentication signOut notice:', gErr);
     }
   }
   try {

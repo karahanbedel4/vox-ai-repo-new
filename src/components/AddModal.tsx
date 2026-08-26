@@ -12,13 +12,18 @@ import {
   HardDrive, 
   Play, 
   FileCheck,
-  ChevronDown
+  ChevronDown,
+  Layers,
+  Twitter,
+  Globe,
+  Plus
 } from 'lucide-react';
-import { SourceType, Article } from '../types';
+import { SourceType, Article, SharedLinkItem } from '../types';
 import { appStorage } from '../lib/storage';
 import { safeApiFetch } from '../lib/api';
 import { auth, incrementUserQuota } from '../lib/firebase';
 import { ConversionProgressModal } from './ConversionProgressModal';
+import { MAX_QUEUE_LIMIT } from '../lib/shareService';
 
 interface AddModalProps {
   onImportSuccess: (article: Article) => void;
@@ -30,6 +35,11 @@ interface AddModalProps {
   dailyQuotaLimit?: number;
   onOpenPaywall?: () => void;
   onOpenAuthModal?: () => void;
+  sharedQueue?: SharedLinkItem[];
+  onOpenQueueModal?: () => void;
+  onConvertQueueItem?: (item: SharedLinkItem) => Promise<void>;
+  onDeleteQueueItem?: (id: string) => void;
+  onBatchConvertQueue?: () => Promise<void>;
 }
 
 export const AddModal: React.FC<AddModalProps> = ({ 
@@ -41,7 +51,12 @@ export const AddModal: React.FC<AddModalProps> = ({
   dailyQuotaUsed = 0,
   dailyQuotaLimit = 3,
   onOpenPaywall,
-  onOpenAuthModal
+  onOpenAuthModal,
+  sharedQueue = [],
+  onOpenQueueModal,
+  onConvertQueueItem,
+  onDeleteQueueItem,
+  onBatchConvertQueue
 }) => {
   // Active drawer tab: 'paste' | 'web' | 'pdf' | 'youtube'
   const [activeDrawer, setActiveDrawer] = useState<'paste' | 'web' | 'pdf' | 'youtube'>('paste');
@@ -386,6 +401,112 @@ export const AddModal: React.FC<AddModalProps> = ({
           </button>
         ) : null}
       </div>
+
+      {/* Shared Links & Podcast Conversion Queue (Link Havuzu) */}
+      <section className="bg-surface-container border border-card-border p-4 rounded-2xl space-y-3 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-primary/20 text-primary flex items-center justify-center">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                DÖNÜŞTÜRME KUYRUĞU
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/10 text-primary border border-primary/30">
+                  {sharedQueue.length} / {MAX_QUEUE_LIMIT}
+                </span>
+              </h3>
+              <p className="text-[10px] text-on-surface-variant">
+                YouTube, X veya Web'den paylaşılan kayıtlı bağlantılar
+              </p>
+            </div>
+          </div>
+
+          {onOpenQueueModal && (
+            <button
+              id="open-queue-manager-btn"
+              onClick={onOpenQueueModal}
+              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+            >
+              <span>Yönet</span>
+            </button>
+          )}
+        </div>
+
+        {sharedQueue.length === 0 ? (
+          <div className="bg-surface-container-high/40 border border-white/5 rounded-xl p-3 text-center space-y-1">
+            <p className="text-xs text-neutral-300 font-medium">Havuzda bekleyen link yok</p>
+            <p className="text-[10px] text-neutral-500">
+              Safari, YouTube veya X uygulamasında <strong>Paylaş &gt; VOX</strong> diyerek veya link yapıştırarak buraya kaydedebilirsiniz.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sharedQueue.slice(0, 3).map((item) => (
+              <div 
+                key={item.id}
+                className="bg-[#18202b] border border-white/10 rounded-xl p-2.5 flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {item.platformName === 'YouTube' ? (
+                    <Youtube className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  ) : item.platformName === 'X / Twitter' ? (
+                    <Twitter className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  ) : (
+                    <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  )}
+                  <span className="text-xs text-white font-medium truncate">
+                    {item.title || item.url}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  {onConvertQueueItem && (
+                    <button
+                      onClick={() => onConvertQueueItem(item)}
+                      title="Dönüştür"
+                      className="p-1.5 rounded-lg bg-primary text-black font-bold hover:bg-primary/90 text-xs flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3 h-3 text-black" />
+                      <span className="text-[10px]">Dönüştür</span>
+                    </button>
+                  )}
+                  {onDeleteQueueItem && (
+                    <button
+                      onClick={() => onDeleteQueueItem(item.id)}
+                      title="Sil"
+                      className="p-1.5 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-white/5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Batch convert / View all button */}
+            <div className="flex items-center justify-between pt-1 text-xs">
+              {onBatchConvertQueue && sharedQueue.length > 1 && (
+                <button
+                  onClick={onBatchConvertQueue}
+                  className="py-1.5 px-3 bg-gradient-to-r from-primary/20 to-amber-400/20 hover:from-primary/30 hover:to-amber-400/30 border border-primary/40 text-primary font-bold rounded-lg flex items-center gap-1.5 text-[11px] transition-all"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Tümünü Sırayla Dönüştür ({sharedQueue.length})</span>
+                </button>
+              )}
+              {onOpenQueueModal && (
+                <button
+                  onClick={onOpenQueueModal}
+                  className="text-[11px] text-neutral-400 hover:text-white font-medium ml-auto"
+                >
+                  Tüm Listeyi Gör ({sharedQueue.length}) →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* 4 Main Source Cards */}
       <section className="space-y-3">

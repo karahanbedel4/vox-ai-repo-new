@@ -32,16 +32,27 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // Initialize Gemini API client server-side
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY || '',
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build'
-    }
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim() === '') {
+    return null;
   }
-});
+  return new GoogleGenAI({ 
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build'
+      }
+    }
+  });
+}
 
 async function callGeminiWithRetry(params: { model?: string; contents: any; config?: any }, retries = 2, delayMs = 300) {
+  const client = getGeminiClient();
+  if (!client) {
+    throw new Error('GEMINI_API_KEY is not configured on the server');
+  }
+
   const primaryModel = params.model || 'gemini-3.7-flash';
   const models = Array.from(new Set([primaryModel, 'gemini-3.1-flash-lite', 'gemini-flash-latest']));
   let lastError: any = null;
@@ -49,7 +60,7 @@ async function callGeminiWithRetry(params: { model?: string; contents: any; conf
   for (const modelName of models) {
     for (let i = 0; i < retries; i++) {
       try {
-        const response = await ai.models.generateContent({
+        const response = await client.models.generateContent({
           ...params,
           model: modelName,
         });
@@ -58,6 +69,12 @@ async function callGeminiWithRetry(params: { model?: string; contents: any; conf
         lastError = err;
         const status = err?.status || err?.code;
         const msg = (err?.message || String(err)).toLowerCase();
+        
+        // Non-recoverable auth errors - fail fast without spamming retries
+        if (status === 401 || status === 403 || msg.includes('unauthenticated') || msg.includes('invalid authentication') || msg.includes('permission_denied')) {
+          throw err;
+        }
+
         const isTransient = status === 503 || status === 429 || msg.includes('503') || msg.includes('429') || msg.includes('unavailable') || msg.includes('high demand') || msg.includes('quota') || msg.includes('resource_exhausted');
         
         if (isTransient) {
@@ -2009,7 +2026,7 @@ Respond ONLY with valid JSON:
 }
 `;
 
-    const response = await ai.models.generateContent({
+    const response = await callGeminiWithRetry({
       model: 'gemini-3.7-flash',
       contents: [imagePart, prompt],
       config: {
@@ -2097,10 +2114,10 @@ Yalnızca aşağıdaki JSON formatında yanıt ver:
       };
     }
   } catch (err: any) {
-    // Graceful fallback without noisy logs
+    // Graceful fallback to RSS content parsing without crashing or noisy logs
     const msg = (err?.message || String(err)).toLowerCase();
-    if (!msg.includes('quota') && !msg.includes('503') && !msg.includes('429')) {
-      console.warn(`[News Summary fallback notice for "${item.title}"]:`, (err as Error)?.message || err);
+    if (!msg.includes('quota') && !msg.includes('503') && !msg.includes('429') && !msg.includes('unauthenticated') && !msg.includes('gemini_api_key')) {
+      console.warn(`[News Summary notice for "${item.title}"]:`, (err as Error)?.message || err);
     }
   }
   return null;
@@ -2489,8 +2506,8 @@ XML:
 ${xmlText.substring(0, 15000)}
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+    const response = await callGeminiWithRetry({
+      model: 'gemini-3.7-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json'

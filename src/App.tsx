@@ -57,8 +57,29 @@ import { AppTrackingTransparency } from '@capgo/capacitor-app-tracking-transpare
 import { Bell, X } from 'lucide-react';
 import { initPushNotifications } from './lib/pushNotifications';
 import { initAdMob, showBannerAd, hideBannerAd } from './lib/admob';
+import { LegalView } from './components/LegalView';
 
 export default function App() {
+  // Check if current URL is a legal page (/privacy, /terms, /gizlilik, /kullanim-sartlari, /eula)
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+  const [legalRoute, setLegalRoute] = useState<'privacy' | 'terms' | null>(() => {
+    if (currentPath.includes('privacy') || currentPath.includes('gizlilik')) return 'privacy';
+    if (currentPath.includes('term') || currentPath.includes('kullanim') || currentPath.includes('eula') || currentPath.includes('sart')) return 'terms';
+    return null;
+  });
+
+  if (legalRoute) {
+    return (
+      <LegalView
+        type={legalRoute}
+        onBack={() => {
+          window.history.pushState({}, '', '/');
+          setLegalRoute(null);
+        }}
+      />
+    );
+  }
+
   const [onboarded, setOnboarded] = useState<boolean>(() => {
     return appStorage.getItemSync('vox_onboarded') === 'true';
   });
@@ -748,9 +769,51 @@ export default function App() {
   };
 
   const handleRefreshUser = async () => {
+    // 1. Check local email session first
+    const localEmailUserRaw = appStorage.getItemSync('vox_local_email_user');
+    if (localEmailUserRaw) {
+      try {
+        const localProfile = JSON.parse(localEmailUserRaw);
+        if (localProfile?.uid && localProfile?.authProvider === 'email') {
+          setUser(localProfile);
+          ttsService.setUserId(localProfile.uid);
+          const bms = await getUserBookmarks(localProfile.uid);
+          setBookmarkedIds(bms);
+          return;
+        }
+      } catch (e) {}
+    }
+
     if (auth.currentUser) {
       const p = await syncUserProfile(auth.currentUser);
       setUser(p);
+      ttsService.setUserId(auth.currentUser.uid);
+      const bms = await getUserBookmarks(auth.currentUser.uid);
+      setBookmarkedIds(bms);
+    } else {
+      const guestId = appStorage.getItemSync('vox_guest_uid') || `guest_${Date.now()}`;
+      appStorage.setItemSync('vox_guest_uid', guestId);
+      const guestProfile: UserProfile = {
+        uid: guestId,
+        displayName: 'Misafir Kullanıcı',
+        email: 'misafir@vox.app',
+        photoURL: '',
+        birthdate: '1998-05-14',
+        authProvider: 'guest',
+        isPremium: false,
+        subscriptionTier: 'free',
+        dailyQuotaUsed: 0,
+        lastQuotaResetDate: new Date().toISOString().split('T')[0],
+        focusScore: 85,
+        streakCount: 0,
+        weeklyMinutes: 0,
+        totalArticlesRead: 0,
+        totalListenedMinutes: 0,
+        createdAt: new Date().toISOString()
+      };
+      setUser(guestProfile);
+      ttsService.setUserId(guestId);
+      setBookmarkedIds([]);
     }
   };
 

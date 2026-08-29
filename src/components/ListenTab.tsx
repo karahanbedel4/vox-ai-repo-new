@@ -4,6 +4,7 @@ import { Article } from '../types';
 import { PlaybackState } from '../lib/ttsService';
 import { Haptics, ImpactStyle, triggerHapticImpact } from '../lib/haptics';
 import { PomodoroModal } from './PomodoroModal';
+import { safeApiFetch } from '../lib/api';
 
 interface ListenTabProps {
   playbackState: PlaybackState;
@@ -77,7 +78,7 @@ export const ListenTab: React.FC<ListenTabProps> = ({
         customTitle: currentArticle.title
       };
 
-      const response = await fetch('/api/summarize', {
+      const response = await safeApiFetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(promptPayload)
@@ -154,7 +155,7 @@ export const ListenTab: React.FC<ListenTabProps> = ({
 
     try {
       console.info(`[ListenTab] Processing YouTube URL: ${targetUrl}`);
-      const response = await fetch('/api/summarize', {
+      const response = await safeApiFetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

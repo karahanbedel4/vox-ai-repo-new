@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Sparkles, Flame, Share2, Layers } from 'lucide-react';
 import { StreakInfo } from '../lib/streakService';
+import { VoxLogo } from './VoxLogo';
 
 interface HeaderProps {
   user: UserProfile | null;
@@ -49,11 +50,12 @@ export const Header: React.FC<HeaderProps> = ({
     }`}>
       {/* Brand Logo & Compact Streak Badge */}
       <div className="flex items-center gap-2">
-        <span className={`font-display font-black tracking-tighter text-primary transition-all duration-300 ${
-          isScrolled ? 'text-xl' : 'text-2xl'
-        }`}>
-          VOX
-        </span>
+        <VoxLogo
+          className={`transition-all duration-300 ${
+            isScrolled ? 'h-6' : 'h-7'
+          }`}
+          variant="auto"
+        />
         {isPremium && (
           <span className="bg-primary/15 border border-primary/40 text-primary text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1 shadow-sm">
             <Sparkles className="w-2.5 h-2.5 fill-current" />

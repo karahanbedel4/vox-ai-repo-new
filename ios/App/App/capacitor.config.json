@@ -3,17 +3,16 @@
 	"appName": "VOX",
 	"webDir": "dist",
 	"plugins": {
-		"GoogleAuth": {
-			"scopes": [
-				"profile",
-				"email"
-			],
-			"serverClientId": "890842275987-rd9l3ups221qge9sna5ne9bskdab5ubh.apps.googleusercontent.com",
-			"clientId": "890842275987-ukel5gkqsojkuk24n5kbikjau8hqpr1j.apps.googleusercontent.com",
-			"forceCodeForRefreshToken": true
+		"FirebaseAuthentication": {
+			"skipNativeAuth": false,
+			"providers": [
+				"google.com",
+				"apple.com"
+			]
 		}
 	},
 	"packageClassList": [
+		"FirebaseAuthenticationPlugin",
 		"SignInWithApple",
 		"TextToSpeechPlugin",
 		"AppPlugin",
@@ -23,7 +22,6 @@
 		"CAPNetworkPlugin",
 		"PreferencesPlugin",
 		"StatusBarPlugin",
-		"GoogleAuth",
 		"PurchasesPlugin",
 		"RevenueCatUIPlugin"
 	]

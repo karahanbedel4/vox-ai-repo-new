@@ -6,6 +6,10 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signInWithCredential,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
+  EmailAuthProvider,
+  deleteUser,
   GoogleAuthProvider, 
   OAuthProvider,
   signOut,
@@ -154,52 +158,91 @@ export async function signInWithApple() {
   const isNative = Capacitor.isNativePlatform();
 
   if (isNative) {
-    console.log('Native iOS environment detected for Apple Sign In...');
+    console.log('[Native Auth] Using FirebaseAuthentication for Apple Sign-In on iOS...');
     try {
-      const options: SignInWithAppleOptions = {
-        clientId: 'com.voxozet',
-        redirectURI: 'https://voxozet.firebaseapp.com/__/auth/handler',
-        scopes: 'email name',
-        state: '12345',
-        nonce: 'nonce',
-      };
+      // 1. Try Capacitor FirebaseAuthentication native Apple provider
+      const result = await FirebaseAuthentication.signInWithApple();
+      const idToken = result.credential?.idToken;
+      const rawNonce = result.credential?.nonce;
 
-      const result: SignInWithAppleResponse = await SignInWithApple.authorize(options);
-      const identityToken = result?.response?.identityToken;
+      if (idToken) {
+        const provider = new OAuthProvider('apple.com');
+        const credential = provider.credential({
+          idToken: idToken,
+          rawNonce: rawNonce || undefined,
+        });
 
-      if (!identityToken) {
-        throw new Error('Apple identityToken alınamadı.');
-      }
-
-      const provider = new OAuthProvider('apple.com');
-      const credential = provider.credential({
-        idToken: identityToken,
-        rawNonce: 'nonce',
-      });
-
-      const res = await signInWithCredential(auth, credential);
-      if (res?.user) {
-        // Set display name if provided by Apple on initial sign in
-        if (result.response.givenName || result.response.familyName) {
-          const fullName = [result.response.givenName, result.response.familyName].filter(Boolean).join(' ');
-          if (fullName && !res.user.displayName) {
+        const res = await signInWithCredential(auth, credential);
+        if (res?.user) {
+          if (result.user?.displayName && !res.user.displayName) {
             try {
-              (res.user as any).displayName = fullName;
+              (res.user as any).displayName = result.user.displayName;
             } catch (e) {}
           }
+          await syncUserProfile(res.user);
+          window.dispatchEvent(new CustomEvent('vox_auth_changed', { detail: res.user }));
+          return res;
         }
-        await syncUserProfile(res.user);
-        window.dispatchEvent(new CustomEvent('vox_auth_changed', { detail: res.user }));
       }
-      return res;
-    } catch (nativeErr: any) {
-      console.error('Native SignInWithApple error:', nativeErr);
-      const errStr = String(nativeErr?.message || nativeErr || '').toLowerCase();
-      if (nativeErr?.code === '1001' || errStr.includes('canceled') || errStr.includes('cancelled') || errStr.includes('1001')) {
-        console.info('Apple Sign In cancelled by user.');
+
+      if (auth.currentUser) {
+        await syncUserProfile(auth.currentUser);
+        window.dispatchEvent(new CustomEvent('vox_auth_changed', { detail: auth.currentUser }));
+        return { user: auth.currentUser };
+      }
+    } catch (fbAppleErr: any) {
+      console.warn('[Native Auth] FirebaseAuthentication Apple Sign-In warning, trying fallback:', fbAppleErr);
+      const errStr = String(fbAppleErr?.message || fbAppleErr || '').toLowerCase();
+      if (fbAppleErr?.code === '1001' || errStr.includes('canceled') || errStr.includes('cancelled') || errStr.includes('user_cancel')) {
+        console.info('Native Apple Auth cancelled by user.');
         throw new Error('Giriş işlemi iptal edildi.');
       }
-      throw new Error(`Apple ile giriş yapılırken bir sorun oluştu: ${nativeErr?.message || nativeErr || 'Bilinmeyen hata'}`);
+
+      // 2. Fallback to @capacitor-community/apple-sign-in
+      try {
+        const options: SignInWithAppleOptions = {
+          clientId: 'com.voxozet',
+          redirectURI: 'https://vox-ozetle-app.firebaseapp.com/__/auth/handler',
+          scopes: 'email name',
+          state: '12345',
+          nonce: 'nonce',
+        };
+
+        const result: SignInWithAppleResponse = await SignInWithApple.authorize(options);
+        const identityToken = result?.response?.identityToken;
+
+        if (!identityToken) {
+          throw new Error('Apple identityToken alınamadı.');
+        }
+
+        const provider = new OAuthProvider('apple.com');
+        const credential = provider.credential({
+          idToken: identityToken,
+          rawNonce: 'nonce',
+        });
+
+        const res = await signInWithCredential(auth, credential);
+        if (res?.user) {
+          if (result.response.givenName || result.response.familyName) {
+            const fullName = [result.response.givenName, result.response.familyName].filter(Boolean).join(' ');
+            if (fullName && !res.user.displayName) {
+              try {
+                (res.user as any).displayName = fullName;
+              } catch (e) {}
+            }
+          }
+          await syncUserProfile(res.user);
+          window.dispatchEvent(new CustomEvent('vox_auth_changed', { detail: res.user }));
+          return res;
+        }
+      } catch (fallbackErr: any) {
+        console.error('Apple Sign-In fallback error:', fallbackErr);
+        const fbErrStr = String(fallbackErr?.message || fallbackErr || '').toLowerCase();
+        if (fallbackErr?.code === '1001' || fbErrStr.includes('canceled') || fbErrStr.includes('cancelled') || fbErrStr.includes('1001')) {
+          throw new Error('Giriş işlemi iptal edildi.');
+        }
+        throw new Error(`Apple ile giriş yapılırken bir sorun oluştu: ${fallbackErr?.message || fbAppleErr?.message || 'Bilinmeyen hata'}`);
+      }
     }
   } else {
     // Desktop Web Environment
@@ -868,3 +911,129 @@ export async function saveUserPushToken(userId: string, pushToken: string): Prom
     return false;
   }
 }
+
+// Re-authenticate Current User with Google Provider (Web & Native iOS/Android)
+export async function reauthenticateWithGoogleProvider() {
+  if (!auth.currentUser) throw new Error('Giriş yapılmış bir kullanıcı bulunamadı.');
+  if (Capacitor.isNativePlatform()) {
+    const result = await FirebaseAuthentication.signInWithGoogle();
+    const idToken = result.credential?.idToken;
+    const accessToken = result.credential?.accessToken;
+    if (!idToken) throw new Error('Google kimlik doğrulaması tamamlanamadı.');
+    const credential = GoogleAuthProvider.credential(idToken, accessToken || undefined);
+    return await reauthenticateWithCredential(auth.currentUser, credential);
+  } else {
+    return await reauthenticateWithPopup(auth.currentUser, googleProvider);
+  }
+}
+
+// Re-authenticate Current User with Apple Provider (Web & Native iOS)
+export async function reauthenticateWithAppleProvider() {
+  if (!auth.currentUser) throw new Error('Giriş yapılmış bir kullanıcı bulunamadı.');
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const result = await FirebaseAuthentication.signInWithApple();
+      const idToken = result.credential?.idToken;
+      if (idToken) {
+        const credential = appleProvider.credential({ idToken, rawNonce: 'nonce' });
+        return await reauthenticateWithCredential(auth.currentUser, credential);
+      }
+    } catch (e) {
+      console.warn('Native Apple reauth fallback:', e);
+    }
+  }
+  return await reauthenticateWithPopup(auth.currentUser, appleProvider);
+}
+
+// Re-authenticate Current User with Email & Password
+export async function reauthenticateWithEmailPassword(password: string): Promise<boolean> {
+  const localEmailUser = appStorage.getItemSync('vox_local_email_user');
+  if (localEmailUser) {
+    return true;
+  }
+  if (!auth.currentUser || !auth.currentUser.email) {
+    throw new Error('Giriş yapılmış bir e-posta hesabı bulunamadı.');
+  }
+  const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
+  await reauthenticateWithCredential(auth.currentUser, credential);
+  return true;
+}
+
+// Complete Account & Data Deletion (Firestore + Auth + Local Storage + Cache)
+export async function deleteUserAccountAndAllData(userId?: string): Promise<{ success: boolean; message?: string }> {
+  let uid = userId || auth.currentUser?.uid;
+  if (!uid) {
+    try {
+      const local = appStorage.getItemSync('vox_local_email_user');
+      if (local) {
+        uid = JSON.parse(local).uid;
+      }
+    } catch (e) {}
+  }
+
+  if (uid) {
+    // 1. Delete Firestore user document
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+    } catch (e) {
+      console.warn('Could not delete user doc from Firestore:', e);
+    }
+
+    // 2. Delete Firestore bookmarks for this user
+    try {
+      const q = query(collection(db, 'bookmarks'), where('userId', '==', uid));
+      const snap = await getDocs(q);
+      const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+    } catch (e) {
+      console.warn('Could not delete user bookmarks from Firestore:', e);
+    }
+  }
+
+  // 3. Clear all user-related local caches and storage
+  const keysToRemove = [
+    'vox_local_email_user',
+    'vox_local_guest_user',
+    'vox_user_stats',
+    'vox_user_bookmarks',
+    'vox_bookmarks',
+    'vox_resume_position',
+    'vox_daily_quota',
+    'vox_user_streak',
+    'vox_favorite_categories',
+    'vox_custom_articles',
+    'vox_guest_uid'
+  ];
+
+  for (const key of keysToRemove) {
+    await appStorage.removeItem(key);
+  }
+
+  if (typeof localStorage !== 'undefined') {
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('vox_user_') || key.startsWith('vox_local_')) {
+        localStorage.removeItem(key);
+      }
+    });
+  }
+
+  // 4. Delete Firebase Auth user
+  if (auth.currentUser) {
+    try {
+      await deleteUser(auth.currentUser);
+    } catch (e: any) {
+      console.warn('Firebase deleteUser note:', e);
+      if (e?.code === 'auth/requires-recent-login') {
+        throw new Error('auth/requires-recent-login');
+      }
+    }
+  }
+
+  // 5. Sign out cleanly
+  await signOutApp();
+  window.dispatchEvent(new CustomEvent('vox_auth_changed', { detail: null }));
+
+  return { success: true };
+}
+

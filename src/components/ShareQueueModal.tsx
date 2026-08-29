@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { SharedLinkItem, SourceType } from '../types';
 import { MAX_QUEUE_LIMIT, parseSharedContent } from '../lib/shareService';
+import { VoxLogo } from './VoxLogo';
 
 interface ShareQueueModalProps {
   isOpen: boolean;
@@ -94,9 +95,7 @@ export const ShareQueueModal: React.FC<ShareQueueModalProps> = ({
         {/* Header with VOX branding */}
         <div className="p-5 pb-4 border-b border-white/10 bg-gradient-to-b from-primary/10 to-transparent flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-amber-300 flex items-center justify-center shadow-lg shadow-primary/25 border border-primary/40 font-black text-black text-sm tracking-wider">
-              VOX
-            </div>
+            <VoxLogo className="h-8 w-auto" variant="dark" />
             <div>
               <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                 Dönüştürme Havuzu & Kuyruk

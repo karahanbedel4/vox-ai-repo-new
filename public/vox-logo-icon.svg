@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="#000000" />
+  
+  <!-- Left Dual Green Capsule / Pill Bars -->
+  <rect x="52" y="156" width="48" height="180" rx="24" fill="#1eb980" />
+  <rect x="124" y="156" width="48" height="180" rx="24" fill="#1eb980" />
+
+  <!-- Main VOX Wordmark (White) -->
+  <g fill="#FFFFFF">
+    <!-- V -->
+    <path d="M 200 180 L 244 286 L 274 286 L 318 180 L 284 180 L 259 246 L 234 180 Z" />
+    <!-- O -->
+    <path d="M 370 178 C 336 178 310 204 310 236 C 310 268 336 294 370 294 C 404 294 430 268 430 236 C 430 204 404 178 370 178 Z M 370 204 C 388 204 402 218 402 236 C 402 254 388 268 370 268 C 352 268 338 254 338 236 C 338 218 352 204 370 204 Z" />
+    <!-- X -->
+    <path d="M 436 180 L 470 232 L 432 286 L 468 286 L 488 252 L 508 286 L 544 286 L 506 232 L 540 180 L 504 180 L 488 208 L 472 180 Z" />
+  </g>
+
+  <!-- Green Underline Base & OZET Serif Text -->
+  <line x1="210" y1="316" x2="430" y2="316" stroke="#1eb980" stroke-width="5" stroke-linecap="round" />
+  <text x="440" y="324" font-family="'Times New Roman', 'Playfair Display', Georgia, serif" font-weight="900" font-size="34" fill="#1eb980" letter-spacing="1">OZET</text>
+</svg>

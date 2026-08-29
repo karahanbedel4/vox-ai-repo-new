@@ -37,6 +37,8 @@ export interface Article {
   author?: string;
   keyPoints?: string[];
   transcriptWords?: { word: string; start: number; duration: number }[];
+  aiSummary?: string;
+  aiKeyPoints?: string[];
   englishTitle?: string;
   englishSummary?: string;
   englishContent?: string;

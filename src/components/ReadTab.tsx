@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Play, Pause, Bookmark, Sparkles, ChevronRight, Volume2, Eye, EyeOff, Loader2, ArrowDown, WifiOff, BookOpen, RefreshCw, Youtube, FileText, Link2, Plus, Sliders, Check, X } from 'lucide-react';
+import { Play, Pause, Bookmark, Sparkles, ChevronRight, Volume2, Eye, EyeOff, Loader2, ArrowDown, WifiOff, BookOpen, RefreshCw, Youtube, FileText, Link2, Plus, Sliders, Check, X, ExternalLink } from 'lucide-react';
 import { Article } from '../types';
 import { ResumePosition } from '../lib/ttsService';
 import { ResumeBanner } from './ResumeBanner';
 import { StreakWidget } from './StreakWidget';
 import { StreakInfo } from '../lib/streakService';
 import { OfflineBanner } from './OfflineBanner';
-import { fetchNewsByCategory } from '../lib/newsService';
+import { fetchNewsByCategory, buildUtmUrl, summarizeArticleWithGemini } from '../lib/newsService';
 import { cacheTop3Articles } from '../lib/offlineService';
 import { appStorage } from '../lib/storage';
 import { getArticlesPaginated } from '../lib/firebase';
@@ -84,6 +84,8 @@ export const ReadTab: React.FC<ReadTabProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Tümü');
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
+  const [readerViewMode, setReaderViewMode] = useState<'full' | 'ai_summary'>('full');
+  const [isSummarizingAi, setIsSummarizingAi] = useState<boolean>(false);
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
 
   // Dynamic GNews / Turkish RSS News Feed state
@@ -91,6 +93,31 @@ export const ReadTab: React.FC<ReadTabProps> = ({
   const [isLoadingNews, setIsLoadingNews] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
+
+  // Handle Gemini AI summarization on demand
+  const handleSummarizeCurrentArticle = async () => {
+    if (!readingArticle || isSummarizingAi) return;
+    setIsSummarizingAi(true);
+    triggerHaptic();
+
+    try {
+      const summaryResult = await summarizeArticleWithGemini(readingArticle);
+      setReadingArticle(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          aiSummary: summaryResult.aiSummary,
+          aiKeyPoints: summaryResult.aiKeyPoints,
+          summary: summaryResult.aiSummary
+        };
+      });
+      setReaderViewMode('ai_summary');
+    } catch (err) {
+      console.warn('AI Summarize failed:', err);
+    } finally {
+      setIsSummarizingAi(false);
+    }
+  };
 
   // Favorite categories selected during onboarding / preferences
   const [favoriteCategories, setFavoriteCategories] = useState<string[]>(() => {
@@ -455,9 +482,6 @@ export const ReadTab: React.FC<ReadTabProps> = ({
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-on-surface">Günün Öne Çıkanı</h2>
-                <span className="text-[10px] text-primary font-bold uppercase tracking-widest flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> AI SENTEZ
-                </span>
               </div>
 
               <div className="relative rounded-2xl overflow-hidden border border-card-border bg-surface-container shadow-sm group">
@@ -851,91 +875,231 @@ export const ReadTab: React.FC<ReadTabProps> = ({
       </>
       )}
 
-      {/* Reader Detail Modal with Karaoke Word Highlighting */}
+      {/* Reader Detail Modal with Full Content, Gemini AI Summarizer & Source Attribution */}
       {readingArticle && (
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl p-6 overflow-y-auto animate-fade-in flex flex-col justify-between max-w-md mx-auto text-on-surface">
-          <div className="space-y-6">
-            <div className="flex justify-between items-center border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl p-5 overflow-y-auto animate-fade-in flex flex-col justify-between max-w-md mx-auto text-on-surface">
+          <div className="space-y-5 pb-6">
+            {/* Top Navigation Bar */}
+            <div className="flex justify-between items-center border-b border-white/10 pb-3.5">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-primary uppercase tracking-widest">
-                  {readingArticle.category}
+                <span className="text-xs font-bold text-primary uppercase tracking-widest bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
+                  {readingArticle.category || 'Gündem'}
                 </span>
-                <span className="bg-primary/20 text-primary border border-primary/30 text-[10px] font-mono px-2 py-0.5 rounded-full">
-                  CANLI METİN TAKİBİ
+                <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  CANLI AKIŞ
                 </span>
               </div>
               <button
-                onClick={() => setReadingArticle(null)}
-                className="text-xs font-bold text-on-surface-variant hover:text-on-surface bg-white/10 px-3 py-1.5 rounded-full"
+                onClick={() => {
+                  triggerHaptic();
+                  setReadingArticle(null);
+                  setReaderViewMode('full');
+                }}
+                className="text-xs font-bold text-on-surface-variant hover:text-on-surface bg-white/10 hover:bg-white/20 px-3.5 py-1.5 rounded-full active:scale-95 transition-all"
               >
                 Kapat
               </button>
             </div>
 
+            {/* Headline & Meta */}
             <div className="space-y-2">
-              <h1 className="font-display text-2xl font-bold leading-tight">
+              <h1 className="font-display text-xl font-bold leading-snug text-on-surface">
                 {readingArticle.title}
               </h1>
-              <p className="text-xs text-on-surface-variant">
-                Yazar: {readingArticle.author || 'VOX AI Editor'} • {Math.floor(readingArticle.durationSeconds / 60)} dakika dinleme süresi
+              <p className="text-xs text-on-surface-variant font-medium flex items-center gap-2">
+                <span className="text-primary font-bold">{readingArticle.author || 'VOX AI Haber'}</span>
+                <span>•</span>
+                <span>{Math.max(2, Math.floor(readingArticle.durationSeconds / 60))} dakika okuma/dinleme</span>
               </p>
             </div>
 
+            {/* Cover Image */}
             {readingArticle.imageUrl && (
-              <img
-                src={readingArticle.imageUrl}
-                alt={readingArticle.title}
-                className="w-full h-44 rounded-2xl object-cover border border-white/10"
-                onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = 'none';
-                }}
-              />
+              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-surface-variant max-h-48">
+                <img
+                  src={readingArticle.imageUrl}
+                  alt={readingArticle.title}
+                  className="w-full h-48 object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+              </div>
             )}
 
-            <div className="bg-primary/10 border border-primary/30 p-4 rounded-2xl space-y-2">
-              <span className="text-xs font-bold text-primary uppercase tracking-wider block">Yapay Zeka Özeti</span>
-              <p className="text-xs leading-relaxed text-on-surface font-medium">{readingArticle.summary}</p>
-            </div>
-
-            {/* Script Body with Highlighted Active Word */}
-            <div className="space-y-4 bg-surface-container/80 border border-white/10 p-5 rounded-2xl">
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                SESLİ ANLATIM METNİ (EŞZAMANLI VURGU)
-              </span>
-
-              <div className="text-sm leading-relaxed text-on-surface space-y-3 font-sans">
-                {readingArticle.content.split(' ').map((word, idx) => {
-                  const isActive = isPlaying && currentArticle?.id === readingArticle.id && (idx === currentWordIndex || (currentWordIndex > 0 && Math.abs(idx - currentWordIndex) <= 1));
-                  return (
-                    <span
-                      key={idx}
-                      className={`inline-block mr-1.5 transition-colors duration-200 ${
-                        isActive
-                          ? 'text-emerald-400 font-extrabold bg-emerald-500/20 px-1 py-0.5 rounded border border-emerald-400/40'
-                          : 'text-on-surface/90 hover:text-white'
-                      }`}
-                    >
-                      {word}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-
-            {readingArticle.keyPoints && (
-              <div className="bg-surface-container p-4 rounded-2xl space-y-2 border border-white/10">
-                <span className="text-xs font-bold text-primary uppercase tracking-wider">Öne Çıkan Başlıklar</span>
-                <ul className="list-disc list-inside space-y-1 text-xs text-on-surface-variant">
-                  {readingArticle.keyPoints.map((kp, idx) => (
-                    <li key={idx}>{kp}</li>
+            {/* ÖNE ÇIKAN BAŞLIKLAR (Key Points Box - Web Deseni) */}
+            {readingArticle.keyPoints && readingArticle.keyPoints.length > 0 && (
+              <div className="bg-surface-container/90 border border-white/10 p-4 rounded-2xl space-y-2.5 shadow-sm">
+                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                  ÖNE ÇIKAN BAŞLIKLAR
+                </span>
+                <ul className="space-y-2 text-xs text-on-surface/90 leading-relaxed font-sans">
+                  {(readingArticle.aiKeyPoints || readingArticle.keyPoints).map((kp, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/80 mt-1.5 shrink-0"></span>
+                      <span>{kp}</span>
+                    </li>
                   ))}
                 </ul>
               </div>
             )}
+
+            {/* GEMINI AI ÖZETLEME & KISALTMA KONTROL PANELİ */}
+            <div className="bg-surface-container/80 border border-primary/30 p-3.5 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-primary/20 text-primary flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-on-surface">Yapay Zeka Sesli Özet</h4>
+                    <p className="text-[10px] text-on-surface-variant">Metni Gemini API ile 3-4 cümleye kısaltıp dinleyin</p>
+                  </div>
+                </div>
+
+                {!readingArticle.aiSummary ? (
+                  <button
+                    onClick={handleSummarizeCurrentArticle}
+                    disabled={isSummarizingAi}
+                    className="bg-primary hover:bg-primary/90 text-on-primary px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-sm disabled:opacity-50"
+                  >
+                    {isSummarizingAi ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Özetleniyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>AI ile Kısalt</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                    Özet Hazır
+                  </span>
+                )}
+              </div>
+
+              {/* Toggle Segmented Switch (Tam Metin vs AI Özeti) */}
+              {readingArticle.aiSummary && (
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-surface-container-high rounded-xl border border-white/5">
+                  <button
+                    onClick={() => {
+                      triggerHaptic();
+                      setReaderViewMode('full');
+                    }}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      readerViewMode === 'full'
+                        ? 'bg-surface text-primary shadow-sm'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    Tam Metin (Orijinal)
+                  </button>
+                  <button
+                    onClick={() => {
+                      triggerHaptic();
+                      setReaderViewMode('ai_summary');
+                    }}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      readerViewMode === 'ai_summary'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>AI Özeti (Kısaltılmış)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ANA METİN ALANI (Zengin Paragraflar ve Canlı Vurgu) */}
+            <div className="space-y-4 bg-surface-container/80 border border-white/10 p-5 rounded-2xl">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                <span className="text-[11px] font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-primary" />
+                  {readerViewMode === 'ai_summary' ? 'YAPAY ZEKA KISALTILMIŞ BÜLTENİ' : 'HABERİN TAM METNİ'}
+                </span>
+                <span className="text-[10px] font-mono text-on-surface-variant">
+                  {readerViewMode === 'ai_summary' ? '~1 dk dinleme' : `${Math.floor(readingArticle.durationSeconds / 60)} dk dinleme`}
+                </span>
+              </div>
+
+              {/* Paragraf tabanlı metin gösterimi */}
+              <div className="text-sm leading-relaxed text-on-surface space-y-3.5 font-sans">
+                {(() => {
+                  const activeText = readerViewMode === 'ai_summary' && readingArticle.aiSummary
+                    ? readingArticle.aiSummary
+                    : readingArticle.content;
+
+                  const paragraphs = activeText.split('\n\n').filter(Boolean);
+
+                  let globalWordCounter = 0;
+
+                  return paragraphs.map((para, pIdx) => {
+                    const words = para.split(' ').filter(Boolean);
+
+                    return (
+                      <p key={pIdx} className="text-on-surface/90 text-sm leading-relaxed">
+                        {words.map((word, wIdx) => {
+                          const thisWordIndex = globalWordCounter++;
+                          const isActive = isPlaying && currentArticle?.id === readingArticle.id && (thisWordIndex === currentWordIndex || (currentWordIndex > 0 && Math.abs(thisWordIndex - currentWordIndex) <= 1));
+                          
+                          return (
+                            <span
+                              key={wIdx}
+                              className={`inline-block mr-1 transition-colors duration-200 ${
+                                isActive
+                                  ? 'text-emerald-400 font-extrabold bg-emerald-500/20 px-1 py-0.5 rounded border border-emerald-400/40'
+                                  : 'text-on-surface/90'
+                              }`}
+                            >
+                              {word}
+                            </span>
+                          );
+                        })}
+                      </p>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* YAYINCI & KAYNAK KART VE UTM'Lİ ORİJİNAL HABERE GİT BUTONU (Web Deseni) */}
+            <div className="bg-surface-container/90 border border-white/10 p-4 rounded-2xl space-y-3 shadow-sm">
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Yayıncı & Kaynak</p>
+                <p className="text-xs text-on-surface/90 leading-relaxed">
+                  Bu haber <strong className="text-emerald-400 font-bold">{readingArticle.author || 'Haber Kaynağı'}</strong> tarafından yayınlanmış olup VOX Akıllı Akış motoru ile anlık derlenmiştir.
+                </p>
+              </div>
+
+              {readingArticle.sourceUrl && (
+                <a
+                  href={buildUtmUrl(readingArticle.sourceUrl, readingArticle.title)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => triggerHaptic()}
+                  className="inline-flex items-center justify-between w-full bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-400 font-bold px-4 py-3 rounded-xl text-xs transition-all active:scale-98 shadow-sm group"
+                >
+                  <span className="flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Orijinal Habere Git ({readingArticle.author || 'Kaynağında Oku'})</span>
+                  </span>
+                  <ExternalLink className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                </a>
+              )}
+            </div>
           </div>
 
-          <div className="pt-6 border-t border-white/10 flex gap-3 mt-6">
+          {/* Dinleme Butonu / Sticky Bottom Bar */}
+          <div className="pt-4 border-t border-white/10 flex gap-3 mt-4 shrink-0">
             {isOffline ? (
               <button
                 disabled
@@ -947,12 +1111,27 @@ export const ReadTab: React.FC<ReadTabProps> = ({
             ) : (
               <button
                 onClick={() => {
-                  onPlayArticle(readingArticle);
+                  triggerHaptic();
+                  if (readerViewMode === 'ai_summary' && readingArticle.aiSummary) {
+                    onPlayArticle({
+                      ...readingArticle,
+                      content: readingArticle.aiSummary,
+                      durationSeconds: Math.max(60, Math.floor(readingArticle.aiSummary.split(' ').length * 1.5))
+                    });
+                  } else {
+                    onPlayArticle(readingArticle);
+                  }
                 }}
                 className="flex-1 bg-primary text-on-primary py-3.5 rounded-full font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform"
               >
                 <Play className="w-4 h-4 fill-current" />
-                <span>{isPlaying && currentArticle?.id === readingArticle.id ? 'Seslendirmeyi Duraklat' : 'Haberi Dinleyin'}</span>
+                <span>
+                  {isPlaying && currentArticle?.id === readingArticle.id 
+                    ? 'Seslendirmeyi Duraklat' 
+                    : readerViewMode === 'ai_summary' && readingArticle.aiSummary 
+                    ? 'Kısaltılmış Özeti Dinleyin' 
+                    : 'Haberi Dinleyin'}
+                </span>
               </button>
             )}
           </div>

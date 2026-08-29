@@ -1,49 +1,129 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+
 /**
- * Hardcoded API Base URL for live Render backend (https://vox-ai-repo.onrender.com)
- * Used as primary for Capacitor native apps and fallback for web apps.
+ * Hardcoded API Base URLs for live backend services
+ * Used for Capacitor native iOS/Android apps and remote fallbacks.
  */
-export const LIVE_BACKEND_URL = 'https://vox-ai-repo.onrender.com';
+export const LIVE_BACKEND_URL = 'https://ais-dev-sefrhwmpi2727osvklse3f-2538769099.europe-west2.run.app';
+export const SECONDARY_BACKEND_URL = 'https://ais-pre-sefrhwmpi2727osvklse3f-2538769099.europe-west2.run.app';
+export const RENDER_BACKEND_URL = 'https://vox-ai-repo.onrender.com';
 
 export const isNativeCapacitor = (): boolean => {
   if (typeof window === 'undefined') return false;
-  return window.location.protocol === 'capacitor:' || window.location.protocol === 'file:' || !!(window as any).Capacitor?.isNativePlatform();
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+  } catch {}
+  return (
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'file:' ||
+    !!(window as any).Capacitor?.isNativePlatform?.() ||
+    !!(window as any).Capacitor?.isNative
+  );
 };
+
+/**
+ * Global API Base URL:
+ * Native iOS / Android -> Live Cloud Run backend
+ * Web -> '' (relative)
+ */
+export const API_BASE_URL: string = isNativeCapacitor()
+  ? LIVE_BACKEND_URL
+  : '';
 
 export const getApiUrl = (endpoint: string): string => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  // In web environment, use relative path so local server / Cloud Run container serves the endpoint directly
-  if (typeof window !== 'undefined' && !isNativeCapacitor()) {
-    return cleanEndpoint;
-  }
-  return `${LIVE_BACKEND_URL}${cleanEndpoint}`;
+  const baseUrl = isNativeCapacitor() ? LIVE_BACKEND_URL : '';
+  return `${baseUrl}${cleanEndpoint}`;
 };
 
 export async function safeApiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const primaryUrl = getApiUrl(cleanEndpoint);
-  
-  try {
-    const res = await fetch(primaryUrl, options);
-    if (res.ok) return res;
-    
-    // If relative endpoint returned non-200 and we are on web, attempt fallback to LIVE_BACKEND_URL
-    if (!primaryUrl.startsWith('http')) {
-      const fallbackUrl = `${LIVE_BACKEND_URL}${cleanEndpoint}`;
-      const fallbackRes = await fetch(fallbackUrl, options);
-      if (fallbackRes.ok) return fallbackRes;
-    }
-    return res;
-  } catch (err) {
-    // Network failure on primaryUrl: try fallback URL
-    const secondaryUrl = primaryUrl.startsWith('http') 
-      ? cleanEndpoint 
-      : `${LIVE_BACKEND_URL}${cleanEndpoint}`;
+  const isNative = isNativeCapacitor();
+
+  const candidateUrls: string[] = [];
+
+  if (isNative) {
+    candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
+    candidateUrls.push(`${SECONDARY_BACKEND_URL}${cleanEndpoint}`);
+    candidateUrls.push(`${RENDER_BACKEND_URL}${cleanEndpoint}`);
+  } else {
+    candidateUrls.push(cleanEndpoint);
+    candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
+    candidateUrls.push(`${SECONDARY_BACKEND_URL}${cleanEndpoint}`);
+    candidateUrls.push(`${RENDER_BACKEND_URL}${cleanEndpoint}`);
+  }
+
+  let lastError: any = null;
+
+  for (const url of candidateUrls) {
+    // 1. Standard fetch with 8s abort timeout to prevent hanging
     try {
-      return await fetch(secondaryUrl, options);
-    } catch {
-      throw err;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        }
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) return res;
+      // If server returned 4xx or 5xx with handled business error, return response
+      if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 422) {
+        return res;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`Fetch attempt to ${url} skipped:`, err);
+    }
+
+    // 2. Native Capacitor iOS/Android URLSession request (immune to browser CORS)
+    if (isNative && url.startsWith('http')) {
+      try {
+        let bodyData: any = undefined;
+        if (options?.body) {
+          if (typeof options.body === 'string') {
+            try {
+              bodyData = JSON.parse(options.body);
+            } catch {
+              bodyData = options.body;
+            }
+          } else {
+            bodyData = options.body;
+          }
+        }
+
+        const nativeRes = await CapacitorHttp.request({
+          url: url,
+          method: options?.method || 'GET',
+          headers: (options?.headers as Record<string, string>) || { 'Content-Type': 'application/json' },
+          data: bodyData,
+          connectTimeout: 8000,
+          readTimeout: 12000
+        });
+
+        const status = nativeRes.status || 200;
+        const responseBody = typeof nativeRes.data === 'object' ? JSON.stringify(nativeRes.data) : String(nativeRes.data || '');
+        const res = new Response(responseBody, {
+          status: status,
+          headers: nativeRes.headers as Record<string, string>,
+        });
+
+        if (res.ok || status === 400 || status === 401 || status === 403 || status === 422) {
+          return res;
+        }
+      } catch (nativeHttpErr) {
+        lastError = nativeHttpErr;
+        console.warn(`Native CapacitorHttp to ${url} skipped:`, nativeHttpErr);
+      }
     }
   }
+
+  throw lastError || new Error(`Sunucuya erişilemedi (${cleanEndpoint}). Lütfen internet bağlantınızı kontrol edin.`);
 }
 
 

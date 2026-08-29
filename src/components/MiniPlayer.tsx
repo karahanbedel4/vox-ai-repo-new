@@ -3,6 +3,7 @@ import { Play, Pause, X, RotateCw, Volume2 } from 'lucide-react';
 import { Article } from '../types';
 import { PlaybackState } from '../lib/ttsService';
 import { Haptics, ImpactStyle, triggerHapticImpact } from '../lib/haptics';
+import { VoxLogo } from './VoxLogo';
 
 interface MiniPlayerProps {
   playbackState: PlaybackState;
@@ -73,8 +74,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-primary/30 to-surface-container flex items-center justify-center text-primary font-bold text-sm">
-                VOX
+              <div className="w-full h-full bg-gradient-to-br from-primary/20 to-surface-container flex items-center justify-center">
+                <VoxLogo variant="icon-only" className="h-6 w-auto" />
               </div>
             )}
 

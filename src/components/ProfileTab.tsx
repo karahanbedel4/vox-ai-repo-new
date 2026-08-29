@@ -30,7 +30,15 @@ import {
   BarChart2,
   Loader2,
   AlertCircle,
-  Square
+  Square,
+  Shield,
+  Scale,
+  ChevronRight,
+  ExternalLink,
+  KeyRound,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldAlert
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -45,7 +53,22 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { triggerHapticImpact } from '../lib/haptics';
 import { UserProfile } from '../types';
 import { woodRainSynth } from '../lib/audioSynth';
-import { auth, googleProvider, signInWithGoogle, signInWithApple, signInAsGuest, robustEmailSignIn, robustEmailSignUp, signInAnonymously, syncUserProfile, signOutApp } from '../lib/firebase';
+import { 
+  auth, 
+  googleProvider, 
+  signInWithGoogle, 
+  signInWithApple, 
+  signInAsGuest, 
+  robustEmailSignIn, 
+  robustEmailSignUp, 
+  signInAnonymously, 
+  syncUserProfile, 
+  signOutApp,
+  reauthenticateWithGoogleProvider,
+  reauthenticateWithAppleProvider,
+  reauthenticateWithEmailPassword,
+  deleteUserAccountAndAllData
+} from '../lib/firebase';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { appStorage } from '../lib/storage';
@@ -82,8 +105,17 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   const [notifEnabled, setNotifEnabled] = useState<boolean>(true);
   const [showPaywall, setShowPaywall] = useState<boolean>(false);
   const [showEmailAuthModal, setShowEmailAuthModal] = useState<boolean>(false);
+  const [showSignOutModal, setShowSignOutModal] = useState<boolean>(false);
+  const [isSigningOut, setIsSigningOut] = useState<boolean>(false);
+  const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+
+  // Delete Account States & Step Management
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [deleteStep, setDeleteStep] = useState<'confirm' | 'reauth' | 'success'>('confirm');
+  const [deletePasswordInput, setDeletePasswordInput] = useState<string>('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
+  const [showLegalModal, setShowLegalModal] = useState<boolean>(false);
 
   // Email Auth Modal inputs
   const [emailInput, setEmailInput] = useState('');
@@ -105,6 +137,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       if (e.key === 'Escape') {
         setShowEmailAuthModal(false);
         setShowPaywall(false);
+        setShowLegalModal(false);
+        setShowSignOutModal(false);
+        setShowDeleteModal(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -217,27 +252,94 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   };
 
   const handleSignOut = async () => {
-    await signOutApp();
-    onRefreshUser();
+    triggerHaptic();
+    setIsSigningOut(true);
+    try {
+      await signOutApp();
+      setShowSignOutModal(false);
+      setAuthSuccessMsg('Oturumunuz başarıyla kapatıldı.');
+      setTimeout(() => setAuthSuccessMsg(null), 4000);
+      onRefreshUser();
+    } catch (err: any) {
+      console.error('Sign out error:', err);
+    } finally {
+      setIsSigningOut(false);
+    }
   };
 
-  const handleDeleteAccount = async () => {
+  const handleOpenDeleteModal = () => {
+    triggerHaptic();
+    setDeleteStep('confirm');
+    setDeletePasswordInput('');
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
+
+  const handleProceedToReauth = () => {
+    triggerHaptic();
+    setDeleteError(null);
+    setDeletePasswordInput('');
+    setDeleteStep('reauth');
+  };
+
+  const handleExecuteDeleteAccount = async () => {
     triggerHaptic();
     setIsDeletingAccount(true);
+    setDeleteError(null);
+
+    const isGoogle = user?.authProvider === 'google' || auth.currentUser?.providerData.some(p => p.providerId === 'google.com');
+    const isApple = user?.authProvider === 'apple' || auth.currentUser?.providerData.some(p => p.providerId === 'apple.com');
+    const isEmail = user?.authProvider === 'email';
+
     try {
-      if (auth.currentUser) {
+      // Step: Re-authenticate before deletion if user is registered
+      if (isGoogle) {
         try {
-          await auth.currentUser.delete();
-        } catch (e) {
-          console.warn('Firebase user delete note:', e);
+          await reauthenticateWithGoogleProvider();
+        } catch (reauthErr: any) {
+          console.warn('Google reauth notice:', reauthErr);
+          if (reauthErr?.code === 'auth/popup-closed-by-user' || String(reauthErr?.message || '').includes('iptal')) {
+            throw new Error('Google girişi iptal edildi veya doğrulanamadı. Hesap silinemedi.');
+          }
+        }
+      } else if (isApple) {
+        try {
+          await reauthenticateWithAppleProvider();
+        } catch (reauthErr: any) {
+          console.warn('Apple reauth notice:', reauthErr);
+          if (reauthErr?.code === 'auth/popup-closed-by-user' || String(reauthErr?.message || '').includes('iptal')) {
+            throw new Error('Apple girişi iptal edildi veya doğrulanamadı. Hesap silinemedi.');
+          }
+        }
+      } else if (isEmail) {
+        if (!deletePasswordInput) {
+          throw new Error('Lütfen hesabınızı silmek için mevcut şifrenizi girin.');
+        }
+        try {
+          await reauthenticateWithEmailPassword(deletePasswordInput);
+        } catch (reauthErr: any) {
+          console.warn('Email reauth error:', reauthErr);
+          if (reauthErr?.code === 'auth/wrong-password' || reauthErr?.code === 'auth/invalid-credential') {
+            throw new Error('Girdiğiniz şifre hatalı. Lütfen şifrenizi kontrol edip tekrar deneyin.');
+          }
+          throw new Error(reauthErr?.message || 'Kimlik doğrulanamadı.');
         }
       }
-      appStorage.clear();
-      await signOutApp();
+
+      // Execute full deletion of all user records, Firestore docs, storage and Auth user
+      await deleteUserAccountAndAllData(user?.uid);
+
+      setDeleteStep('success');
       onRefreshUser();
-      setShowDeleteModal(false);
-    } catch (err) {
+
+      setTimeout(() => {
+        setShowDeleteModal(false);
+        setDeleteStep('confirm');
+        setDeletePasswordInput('');
+      }, 2800);
+    } catch (err: any) {
       console.error('Delete account error:', err);
+      setDeleteError(err?.message || 'Hesap silinirken bir sorun oluştu. Lütfen tekrar deneyin.');
     } finally {
       setIsDeletingAccount(false);
     }
@@ -662,6 +764,26 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
             </div>
           </div>
 
+          {/* Legal and Support: Yasal Uyarı & İçerik Kaldırma */}
+          <button
+            onClick={() => { triggerHaptic(); setShowLegalModal(true); }}
+            className="w-full p-4 flex items-center justify-between hover:bg-surface-variant/40 active:bg-surface-variant/60 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl bg-surface-variant flex items-center justify-center text-primary">
+                <Scale className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-on-surface">Yasal Uyarı ve İletişim</p>
+                <p className="text-[10px] text-on-surface-variant">Telif Hakları, Uyar-Kaldır & Yayıncı İlkeleri</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 text-on-surface-variant">
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </button>
+
           {/* Clear Cache & Application Data */}
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -705,22 +827,44 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           HESAP VE OTURUM
         </h3>
 
+        {authSuccessMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fade-in shadow-sm">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span>{authSuccessMsg}</span>
+          </div>
+        )}
+
         {user?.email && user.authProvider !== 'guest' ? (
           <div className="space-y-2">
+            <div className="p-4 bg-surface-container border border-card-border rounded-2xl flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 text-primary font-bold">
+                  {user.displayName ? user.displayName.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                </div>
+                <div className="truncate">
+                  <p className="text-xs font-bold text-on-surface truncate">{user.displayName || 'Vox Kullanıcısı'}</p>
+                  <p className="text-[11px] text-on-surface-variant truncate">{user.email}</p>
+                </div>
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-surface-variant text-on-surface-variant border border-card-border shrink-0">
+                {user.authProvider === 'google' ? 'Google' : user.authProvider === 'apple' ? 'Apple' : 'E-Posta'}
+              </span>
+            </div>
+
             <button
-              onClick={handleSignOut}
+              onClick={() => { triggerHaptic(); setShowSignOutModal(true); }}
               className="w-full bg-surface-container border border-card-border text-on-surface hover:text-red-400 font-bold py-3.5 rounded-2xl text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-sm"
             >
               <LogOut className="w-4 h-4" />
-              <span>Oturumu Kapat ({user.email})</span>
+              <span>Oturumu Kapat</span>
             </button>
 
             <button
-              onClick={() => { triggerHaptic(); setShowDeleteModal(true); }}
+              onClick={handleOpenDeleteModal}
               className="w-full bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 font-bold py-3 rounded-2xl text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform"
             >
               <Trash2 className="w-4 h-4" />
-              <span>Hesabımı Sil / Hesabı Kaldır</span>
+              <span>Hesabımı ve Tüm Verilerimi Sil</span>
             </button>
           </div>
         ) : (
@@ -731,6 +875,15 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                 <span>{authError}</span>
               </div>
             )}
+
+            <div className="p-3 bg-surface-container/60 border border-card-border rounded-2xl flex items-center justify-between text-xs mb-1">
+              <div className="flex items-center gap-2 text-on-surface-variant">
+                <UserCheck className="w-4 h-4 text-primary" />
+                <span>Misafir Modu Aktif</span>
+              </div>
+              <span className="text-[10px] text-on-surface-variant/80 font-medium">Yerel Oturum</span>
+            </div>
+
             {/* Apple Sign In (App Store Guideline 4.8 Compliance) */}
             {(Capacitor.isNativePlatform() || (typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent))) && (
               <button
@@ -788,60 +941,300 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
             </div>
 
             <button
-              onClick={() => { triggerHaptic(); setShowDeleteModal(true); }}
+              onClick={handleOpenDeleteModal}
               className="w-full bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400/80 font-bold py-2.5 rounded-2xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-transform mt-2"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Verilerimi / Hesabımı Sil</span>
+              <span>Verilerimi ve Geçmişi Temizle</span>
             </button>
           </div>
         )}
       </section>
 
-      {/* DELETE ACCOUNT CONFIRMATION MODAL */}
-      {showDeleteModal && (
+      {/* SIGN OUT CONFIRMATION MODAL */}
+      {showSignOutModal && (
         <div 
           className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer animate-in fade-in touch-none"
-          onClick={() => setShowDeleteModal(false)}
+          onClick={() => setShowSignOutModal(false)}
         >
           <div 
-            className="w-full max-w-sm bg-surface-container border border-red-500/40 rounded-3xl p-6 space-y-4 text-on-surface relative shadow-2xl cursor-default text-center"
+            className="w-full max-w-sm bg-surface-container border border-card-border rounded-3xl p-6 space-y-4 text-on-surface relative shadow-2xl cursor-default text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-full bg-surface-variant border border-card-border text-primary flex items-center justify-center mx-auto">
+              <LogOut className="w-6 h-6" />
             </div>
 
-            <h3 className="font-display font-extrabold text-lg text-on-surface">Hesabınızı Silmek İstiyor Musunuz?</h3>
+            <h3 className="font-display font-extrabold text-lg text-on-surface">Oturumu Kapatmak İstiyor Musunuz?</h3>
             
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Bu işlem hesabınızı, cihazınızdaki yerel ses önbelleklerini, favorilerinizi ve dinleme geçmişinizi kalıcı olarak silecektir. Bu işlem geri alınamaz.
+              Hesabınızdan çıkış yapılacak ve uygulama misafir moduna geçecektir. Tekrar giriş yaptığınızda kayıtlı verileriniz ve yer işaretleriniz geri yüklenecektir.
             </p>
 
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() => setShowSignOutModal(false)}
                 className="bg-surface-variant border border-card-border text-on-surface font-bold py-2.5 rounded-xl text-xs active:scale-95 transition-transform"
               >
-                İptal
+                Vazgeç
               </button>
               <button
                 type="button"
-                onClick={handleDeleteAccount}
-                disabled={isDeletingAccount}
+                onClick={handleSignOut}
+                disabled={isSigningOut}
                 className="bg-red-600 hover:bg-red-500 text-white font-extrabold py-2.5 rounded-xl text-xs active:scale-95 transition-transform flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                {isDeletingAccount ? (
+                {isSigningOut ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Siliniyor...</span>
+                    <span>Çıkılıyor...</span>
                   </>
                 ) : (
-                  <span>Hesabı Sil</span>
+                  <span>Oturumu Kapat</span>
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MULTI-STEP DELETE ACCOUNT & RE-AUTHENTICATION MODAL */}
+      {showDeleteModal && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer animate-in fade-in touch-none"
+          onClick={() => {
+            if (!isDeletingAccount) {
+              setShowDeleteModal(false);
+            }
+          }}
+        >
+          <div 
+            className="w-full max-w-sm bg-surface-container border border-red-500/40 rounded-3xl p-6 space-y-4 text-on-surface relative shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* STEP 1: INITIAL CONFIRMATION WARNING */}
+            {deleteStep === 'confirm' && (
+              <div className="space-y-4 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="font-display font-extrabold text-lg text-on-surface">Hesabınızı ve Verilerinizi Silmek İstiyor Musunuz?</h3>
+                  <p className="text-xs text-red-400/90 font-medium">Bu işlem geri alınamaz!</p>
+                </div>
+                
+                <div className="bg-surface-variant/70 border border-card-border rounded-2xl p-3.5 text-left text-xs space-y-2 text-on-surface-variant">
+                  <p className="font-bold text-on-surface text-[11px] uppercase tracking-wider">Silinecek Veriler:</p>
+                  <ul className="space-y-1.5 text-[11px]">
+                    <li className="flex items-center gap-2">
+                      <Trash2 className="w-3 h-3 text-red-400 shrink-0" />
+                      <span>Tüm okuma ve dinleme geçmişiniz</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Trash2 className="w-3 h-3 text-red-400 shrink-0" />
+                      <span>Kaydedilen favoriler ve yer işaretleri</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Trash2 className="w-3 h-3 text-red-400 shrink-0" />
+                      <span>Odak puanı, streak günleri ve istatistikler</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Trash2 className="w-3 h-3 text-red-400 shrink-0" />
+                      <span>Bulut profil ve kullanıcı hesabı kaydı</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <p className="text-[11px] text-on-surface-variant/80 leading-tight">
+                  Güvenliğiniz için bir sonraki adımda hesabınıza <strong>tekrar giriş yaparak</strong> silme işlemini onaylamanız istenecektir.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(false)}
+                    className="bg-surface-variant border border-card-border text-on-surface font-bold py-2.5 rounded-xl text-xs active:scale-95 transition-transform"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProceedToReauth}
+                    className="bg-red-600 hover:bg-red-500 text-white font-extrabold py-2.5 rounded-xl text-xs active:scale-95 transition-transform flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/20"
+                  >
+                    <span>Devam Et & Doğrula</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: RE-AUTHENTICATION (TEKRAR GİRİŞ YAPMA) */}
+            {deleteStep === 'reauth' && (
+              <div className="space-y-4 text-center">
+                <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/30 text-primary flex items-center justify-center mx-auto">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="font-display font-extrabold text-base text-on-surface">Tekrar Giriş Yaparak Onaylayın</h3>
+                  <p className="text-xs text-on-surface-variant">
+                    Hesap sahibinin siz olduğunu teyit etmek için lütfen kimliğinizi doğrulayın.
+                  </p>
+                </div>
+
+                {deleteError && (
+                  <div className="bg-error/10 border border-error/30 text-error rounded-xl p-2.5 text-xs text-left flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="leading-tight">{deleteError}</span>
+                  </div>
+                )}
+
+                {/* Re-auth with Google */}
+                {(user?.authProvider === 'google' || auth.currentUser?.providerData.some(p => p.providerId === 'google.com')) && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteDeleteAccount}
+                    disabled={isDeletingAccount}
+                    className="w-full bg-white hover:bg-neutral-100 disabled:opacity-60 text-neutral-900 font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2.5 active:scale-95 transition-transform shadow-md"
+                  >
+                    {isDeletingAccount ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-neutral-900" />
+                        <span>Doğrulanıyor ve Siliniyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                        <span>Google İle Giriş Yaparak Sil</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Re-auth with Apple */}
+                {(user?.authProvider === 'apple' || auth.currentUser?.providerData.some(p => p.providerId === 'apple.com')) && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteDeleteAccount}
+                    disabled={isDeletingAccount}
+                    className="w-full bg-black hover:bg-neutral-900 border border-white/20 disabled:opacity-60 text-white font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2.5 active:scale-95 transition-transform shadow-md"
+                  >
+                    {isDeletingAccount ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Doğrulanıyor ve Siliniyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 fill-white shrink-0" viewBox="0 0 170 170">
+                          <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.67-7.81-11.96-14.34-5.78-8.8-10.3-18.78-13.56-29.93-3.26-11.16-4.89-22.08-4.89-32.77 0-14.35 3.69-26.3 11.07-35.86 7.38-9.57 16.63-14.46 27.75-14.67 4.57 0 9.78 1.25 15.63 3.75 5.86 2.5 9.73 3.81 11.61 3.93 1.63-.12 5.72-1.5 12.28-4.14 6.57-2.63 12.16-3.84 16.78-3.63 12.83.65 23.04 5.38 30.63 14.19-11.09 6.74-16.52 16.08-16.3 28.03.22 9.57 3.8 17.59 10.76 24.07 6.96 6.47 15.11 10.16 24.45 11.07-2.17 6.52-4.78 13.04-7.82 19.57zM119.22 31.84c0-7.18 2.61-13.9 7.82-20.17 5.22-6.27 11.52-10.16 18.91-11.67 1.09 7.83-1.08 14.78-6.52 20.87-5.43 6.09-12.17 9.78-20.21 11.07z" />
+                        </svg>
+                        <span>Apple İle Giriş Yaparak Sil</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Re-auth with Email/Password */}
+                {user?.authProvider === 'email' && (
+                  <form onSubmit={(e) => { e.preventDefault(); handleExecuteDeleteAccount(); }} className="space-y-3">
+                    <div className="bg-surface-variant/50 border border-card-border p-2 rounded-xl text-left">
+                      <p className="text-[10px] text-on-surface-variant">E-Posta:</p>
+                      <p className="text-xs font-bold text-on-surface">{user.email}</p>
+                    </div>
+
+                    <div className="space-y-1 text-left">
+                      <label className="text-[11px] font-bold text-on-surface-variant">Mevcut Şifreniz:</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={deletePasswordInput}
+                        onChange={(e) => setDeletePasswordInput(e.target.value)}
+                        className="w-full bg-surface-variant border border-card-border focus:border-red-500 rounded-xl px-3 py-2.5 text-xs text-on-surface outline-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isDeletingAccount || !deletePasswordInput}
+                      className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-extrabold py-2.5 rounded-xl text-xs active:scale-95 transition-transform flex items-center justify-center gap-1.5 shadow-md shadow-red-600/20"
+                    >
+                      {isDeletingAccount ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Doğrulanıyor ve Siliniyor...</span>
+                        </>
+                      ) : (
+                        <span>Şifreyi Onayla ve Hesabı Sil</span>
+                      )}
+                    </button>
+                  </form>
+                )}
+
+                {/* Re-auth for Guest mode */}
+                {(user?.authProvider === 'guest' || (!user?.email && user?.authProvider !== 'google' && user?.authProvider !== 'apple' && user?.authProvider !== 'email')) && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteDeleteAccount}
+                    disabled={isDeletingAccount}
+                    className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-extrabold py-3 rounded-xl text-xs active:scale-95 transition-transform flex items-center justify-center gap-1.5 shadow-md shadow-red-600/20"
+                  >
+                    {isDeletingAccount ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Veriler Temizleniyor...</span>
+                      </>
+                    ) : (
+                      <span>Misafir Verilerini Kalıcı Olarak Sil</span>
+                    )}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setDeleteStep('confirm')}
+                  disabled={isDeletingAccount}
+                  className="w-full text-on-surface-variant hover:text-on-surface text-xs font-bold py-1.5 transition-colors"
+                >
+                  ← Geri Dön
+                </button>
+              </div>
+            )}
+
+            {/* STEP 3: SUCCESS CONFIRMATION */}
+            {deleteStep === 'success' && (
+              <div className="space-y-4 text-center py-2 animate-in fade-in zoom-in-95">
+                <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="font-display font-extrabold text-lg text-on-surface">Hesabınız Başarıyla Silindi</h3>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    Hesabınız, dinleme geçmişiniz ve tüm yerel/bulut verileriniz kalıcı olarak silinmiştir.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeleteStep('confirm');
+                  }}
+                  className="w-full bg-surface-variant border border-card-border text-on-surface font-bold py-2.5 rounded-xl text-xs active:scale-95 transition-transform"
+                >
+                  Tamam
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -973,6 +1366,94 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               7 Günlük Ücretsiz Denemeyi Başlat
             </button>
           </div>
+        </div>
+      )}
+
+      {/* LEGAL & NOTICE/TAKEDOWN MODAL (BOTTOM SHEET / MODAL) */}
+      {showLegalModal && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 cursor-pointer animate-in fade-in"
+          onClick={() => setShowLegalModal(false)}
+        >
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            transition={{ type: "spring", damping: 28, stiffness: 350 }}
+            className="w-full max-w-lg bg-surface-container border-t sm:border border-card-border rounded-t-3xl sm:rounded-3xl p-6 sm:p-7 space-y-5 text-on-surface relative shadow-2xl cursor-default max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Grabber Indicator for iOS Sheet feel */}
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto -mt-2 sm:hidden shrink-0" />
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-card-border pb-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/15 border border-primary/30 text-primary flex items-center justify-center shadow-inner">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-extrabold text-lg text-on-surface">Yasal Uyarı ve İletişim</h3>
+                  <p className="text-[11px] text-on-surface-variant font-medium">Telif Hakları & İçerik Kaldırma Politikası</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowLegalModal(false)}
+                className="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center hover:bg-white/10 text-on-surface transition-colors"
+                title="Kapat"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto space-y-4 pr-1 text-xs text-on-surface-variant leading-relaxed select-text">
+              <div className="p-4 rounded-2xl bg-surface-variant/50 border border-card-border/60 text-on-surface space-y-3">
+                <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
+                  <Shield className="w-4 h-4" />
+                  <span>Yasal Sorumluluk Reddi ve Aracı Hizmet İlkeleri</span>
+                </div>
+                <p className="leading-relaxed text-[13px] text-on-surface/90">
+                  VOX, halka açık haber kaynaklarından elde edilen içerikleri otomatik olarak derleyen ve yapay zeka aracılığıyla özetleyen bir aracı platformdur. Platformumuzda yer alan haberlerin orijinal içerikleri, doğruluğu ve hukuki sorumluluğu tamamen ilgili yayıncı kuruluşlara aittir. VOX, sağlanan metinler üzerinde herhangi bir editoryal denetim veya yönlendirme yapmaz.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 space-y-2">
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Mail className="w-4 h-4" />
+                  <span>Uyar ve Kaldır (Notice and Takedown)</span>
+                </div>
+                <p className="text-xs text-on-surface/80 leading-relaxed">
+                  Telif hakları, kişilik hakları ihlali veya diğer geçerli hukuki gerekçelerle uygulamamızdan veya web sitemizden kaldırılmasını talep ettiğiniz içerikler için, ilgili haberin URL'si veya ekran görüntüsü ile birlikte{' '}
+                  <a 
+                    href="mailto:voxozet@gmail.com?subject=VOX%20%C4%B0%C3%A7erik%20Kald%C4%B1rma%20Talebi" 
+                    className="inline-flex items-center gap-1 font-bold text-primary underline underline-offset-2 hover:opacity-80 active:opacity-60"
+                  >
+                    voxozet@gmail.com
+                    <ExternalLink className="w-3 h-3 inline" />
+                  </a>
+                  {' '}adresine e-posta gönderebilirsiniz.
+                </p>
+              </div>
+
+              <p className="text-[11px] text-on-surface-variant/80 italic">
+                5651 sayılı kanun kapsamında "Uyar ve Kaldır" prensibini benimseyen platformumuz, yasal taleplerinizi değerlendirerek gerekli teknik aksiyonları en kısa sürede alacaktır.
+              </p>
+            </div>
+
+            {/* Direct Email Action Button */}
+            <div className="pt-2 shrink-0">
+              <a
+                href="mailto:voxozet@gmail.com?subject=VOX%20%C4%B0%C3%A7erik%20Kald%C4%B1rma%20Talebi"
+                onClick={() => triggerHaptic()}
+                className="w-full bg-primary text-slate-950 font-extrabold py-3 rounded-2xl text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md"
+              >
+                <Mail className="w-4 h-4" />
+                <span>E-Posta Gönder (voxozet@gmail.com)</span>
+              </a>
+            </div>
+          </motion.div>
         </div>
       )}
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Sparkles, BookmarkPlus, X, ExternalLink, Youtube, Twitter, Globe, ArrowRight } from 'lucide-react';
 import { SharedLinkItem, SourceType } from '../types';
 import { MAX_QUEUE_LIMIT } from '../lib/shareService';
+import { VoxLogo } from './VoxLogo';
 
 interface ShareIncomingModalProps {
   isOpen: boolean;
@@ -65,11 +66,8 @@ export const ShareIncomingModal: React.FC<ShareIncomingModalProps> = ({
         {/* Header with VOX Logo */}
         <div className="relative p-5 pb-4 border-b border-white/10 bg-gradient-to-b from-primary/10 to-transparent">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              {/* VOX Logo Badge */}
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-amber-300 flex items-center justify-center shadow-lg shadow-primary/25 border border-primary/40 font-black text-black text-sm tracking-wider">
-                VOX
-              </div>
+            <div className="flex items-center gap-3">
+              <VoxLogo className="h-8 w-auto" variant="dark" />
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
                   Paylaşılan İçerik Algılandı

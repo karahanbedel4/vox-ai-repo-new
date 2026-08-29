@@ -5,6 +5,7 @@ import { auth, googleProvider, signInWithGoogle, signInWithApple, signInAsGuest,
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { appStorage } from '../lib/storage';
+import { VoxLogo } from './VoxLogo';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -164,6 +165,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             >
               <X className="w-4 h-4" />
             </button>
+
+            <div className="flex justify-center mb-1">
+              <VoxLogo className="h-8 w-auto" variant="dark" />
+            </div>
 
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 border border-primary/40 text-[11px] font-bold text-primary uppercase tracking-widest shadow-[0_0_15px_rgba(78,222,163,0.3)]">
               <Sparkles className="w-3.5 h-3.5" />

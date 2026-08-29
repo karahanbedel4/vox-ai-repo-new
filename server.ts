@@ -10,6 +10,17 @@ import { JSDOM } from 'jsdom';
 const app = express();
 const PORT = 3000;
 
+// Enable CORS for web apps and native Capacitor apps (capacitor://localhost, localhost, etc.)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json({ limit: '50mb' }));
 
 // Set default Content-Type for all /api endpoints to application/json
@@ -2417,26 +2428,36 @@ app.get('/api/news', async (req, res) => {
           keyPoints: summarizedResult.keyPoints
         });
       } else {
-        // High quality fallback conforming to exact rules (Giriş, Gelişme, Sonuç; max 7 sentences; no repetition; news source mentioned; no "Canlı Google Haberler Akışı")
-        const sentences = articleText
-          .replace(/<[^>]+>/g, '')
-          .split(/(?<=[.?!])\s+/)
-          .map(s => s.trim())
-          .filter(s => s.length > 20 && !s.includes('http') && !s.includes('undefined'));
-
-        const uniqueSentences = Array.from(new Set(sentences));
-        const limitedSentences = uniqueSentences.slice(0, 6);
+        // High quality full text preservation conforming to editorial standards
+        const cleanParagraphs = articleText
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/https?:\/\/[^\s]+/gi, '')
+          .split(/\n\s*\n/)
+          .map(p => p.trim())
+          .filter(p => p.length > 20);
 
         let finalContent = '';
-        if (limitedSentences.length > 0) {
-          finalContent = `${item.author} tarafından aktarılan bilgilere göre, ${limitedSentences.join(' ')}`;
+        if (cleanParagraphs.length > 0) {
+          finalContent = cleanParagraphs.join('\n\n');
         } else {
-          finalContent = `${item.author} tarafından paylaşılan son gelişmelere göre, ${item.title}. Konuya ilişkin gelişmeler ve ayrıntılar takip ediliyor.`;
+          finalContent = `${item.title}.\n\n${item.author} tarafından aktarılan bilgilere göre konuyla ilgili ayrıntılı inceleme ve gelişmeler devam ediyor.`;
         }
+
+        const sentences = finalContent
+          .replace(/\n+/g, ' ')
+          .split(/(?<=[.?!])\s+/)
+          .map(s => s.trim())
+          .filter(s => s.length > 20);
 
         const finalSummary = item.rawSummary && item.rawSummary.length > 20
           ? item.rawSummary
-          : `${item.title} hakkında ${item.author} kaynağından edinilen son gelişmeler.`;
+          : (sentences[0] || `${item.title} hakkında ${item.author} kaynağından edinilen son gelişmeler.`);
+
+        const keyHighlights = [
+          item.title,
+          sentences[1] ? sentences[1].substring(0, 100) : 'Gelişmelerin ayrıntıları',
+          `Kaynak: ${item.author}`
+        ];
 
         processedArticles.push({
           id: `news_${category.toLowerCase()}_${i}_${Date.now()}`,
@@ -2448,13 +2469,9 @@ app.get('/api/news', async (req, res) => {
           imageUrl: finalImg || '',
           sourceType: 'rss',
           sourceUrl: item.sourceUrl,
-          durationSeconds: Math.max(120, Math.min(300, finalContent.split(' ').length * 2)),
+          durationSeconds: Math.max(120, Math.min(360, finalContent.split(' ').length * 2)),
           createdAt: new Date().toISOString(),
-          keyPoints: [
-            item.title,
-            'Gelişmelerin ayrıntıları',
-            `Kaynak: ${item.author}`
-          ]
+          keyPoints: keyHighlights
         });
       }
     }

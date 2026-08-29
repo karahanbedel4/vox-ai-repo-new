@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Article } from '../types';
 import { appStorage } from '../lib/storage';
+import { safeApiFetch } from '../lib/api';
 
 interface LibraryTabProps {
   articles: Article[];
@@ -66,7 +67,7 @@ export const LibraryTab: React.FC<LibraryTabProps> = ({
     try {
       setTimeout(() => setSummarizeProgress('Yapay zeka podcast özeti ve seslendirme metni oluşturuyor...'), 1200);
 
-      const res = await fetch('/api/summarize', {
+      const res = await safeApiFetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -43,45 +43,21 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
   const candidateUrls: string[] = [];
 
   if (isNative) {
-    candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
+    // In native iOS/Android, ais-pre (public shared) and render are accessible without cloud run dev auth cookies
     candidateUrls.push(`${SECONDARY_BACKEND_URL}${cleanEndpoint}`);
     candidateUrls.push(`${RENDER_BACKEND_URL}${cleanEndpoint}`);
+    candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
   } else {
     candidateUrls.push(cleanEndpoint);
-    candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
     candidateUrls.push(`${SECONDARY_BACKEND_URL}${cleanEndpoint}`);
+    candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
     candidateUrls.push(`${RENDER_BACKEND_URL}${cleanEndpoint}`);
   }
 
   let lastError: any = null;
 
   for (const url of candidateUrls) {
-    // 1. Standard fetch with 8s abort timeout to prevent hanging
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-      const res = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        }
-      });
-      clearTimeout(timeoutId);
-
-      if (res.ok) return res;
-      // If server returned 4xx or 5xx with handled business error, return response
-      if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 422) {
-        return res;
-      }
-    } catch (err) {
-      lastError = err;
-      console.warn(`Fetch attempt to ${url} skipped:`, err);
-    }
-
-    // 2. Native Capacitor iOS/Android URLSession request (immune to browser CORS)
+    // 1. Native Capacitor iOS/Android URLSession request (preferred on native)
     if (isNative && url.startsWith('http')) {
       try {
         let bodyData: any = undefined;
@@ -102,8 +78,8 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
           method: options?.method || 'GET',
           headers: (options?.headers as Record<string, string>) || { 'Content-Type': 'application/json' },
           data: bodyData,
-          connectTimeout: 8000,
-          readTimeout: 12000
+          connectTimeout: 5000,
+          readTimeout: 10000
         });
 
         const status = nativeRes.status || 200;
@@ -120,6 +96,30 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
         lastError = nativeHttpErr;
         console.warn(`Native CapacitorHttp to ${url} skipped:`, nativeHttpErr);
       }
+    }
+
+    // 2. Standard fetch with 6s abort timeout
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        }
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) return res;
+      if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 422) {
+        return res;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`Fetch attempt to ${url} skipped:`, err);
     }
   }
 

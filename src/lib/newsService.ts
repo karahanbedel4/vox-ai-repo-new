@@ -38,63 +38,63 @@ export function buildUtmUrl(originalUrl: string, title?: string): string {
   }
 }
 
-// 1. Kategori Bazlı Google News, Sözcü, TRT Haber, AA, BBC ve Habertürk RSS Akışları Haritası
+// 1. Kategori Bazlı Doğrudan ve Güvenilir Haber RSS Akışları Haritası (iOS ve Web Uyumlu)
 export const RSS_FEEDS_BY_CATEGORY: Record<string, Array<{ url: string; author: string }>> = {
   'Tümü': [
     { url: 'https://www.trthaber.com/manset_articles.rss', author: 'TRT Haber' },
     { url: 'https://www.sozcu.com.tr/feeds-son-dakika', author: 'Sözcü' },
-    { url: 'https://news.google.com/rss?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Haberler' },
     { url: 'https://www.aa.com.tr/tr/rss/default?cat=gundem', author: 'Anadolu Ajansı' },
     { url: 'https://feeds.bbci.co.uk/turkce/rss.xml', author: 'BBC Türkçe' },
-    { url: 'https://www.haberturk.com/rss/manset.xml', author: 'Habertürk' }
+    { url: 'https://www.haberturk.com/rss/manset.xml', author: 'Habertürk' },
+    { url: 'https://www.ntv.com.tr/gundem.rss', author: 'NTV' }
   ],
   'Gündem': [
     { url: 'https://www.trthaber.com/gundem_articles.rss', author: 'TRT Haber' },
     { url: 'https://www.sozcu.com.tr/feeds-son-dakika', author: 'Sözcü' },
-    { url: 'https://news.google.com/rss/headlines/section/topic/NATION?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Gündem' },
     { url: 'https://www.aa.com.tr/tr/rss/default?cat=gundem', author: 'Anadolu Ajansı' },
     { url: 'https://feeds.bbci.co.uk/turkce/rss.xml', author: 'BBC Türkçe' },
+    { url: 'https://www.ntv.com.tr/gundem.rss', author: 'NTV Gündem' },
     { url: 'https://www.haberturk.com/rss/manset.xml', author: 'Habertürk' }
   ],
   'Teknoloji': [
     { url: 'https://www.webtekno.com/rss.xml', author: 'Webtekno' },
-    { url: 'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Teknoloji' },
     { url: 'https://www.trthaber.com/bilim_teknoloji_articles.rss', author: 'TRT Bilim Teknoloji' },
     { url: 'https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji', author: 'AA Teknoloji' },
+    { url: 'https://www.ntv.com.tr/teknoloji.rss', author: 'NTV Teknoloji' },
     { url: 'https://www.haberturk.com/rss/kategori/teknoloji.xml', author: 'Habertürk Teknoloji' }
   ],
   'Ekonomi': [
     { url: 'https://www.trthaber.com/ekonomi_articles.rss', author: 'TRT Ekonomi' },
     { url: 'https://www.sozcu.com.tr/feeds-ekonomi', author: 'Sözcü Ekonomi' },
-    { url: 'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Ekonomi' },
     { url: 'https://www.aa.com.tr/tr/rss/default?cat=ekonomi', author: 'AA Finans' },
+    { url: 'https://www.ntv.com.tr/ekonomi.rss', author: 'NTV Ekonomi' },
     { url: 'https://www.haberturk.com/rss/kategori/ekonomi.xml', author: 'Habertürk Ekonomi' }
   ],
   'Dünya': [
     { url: 'https://feeds.bbci.co.uk/turkce/rss.xml', author: 'BBC Türkçe' },
     { url: 'https://www.trthaber.com/dunya_articles.rss', author: 'TRT Dünya' },
     { url: 'https://www.sozcu.com.tr/feeds-dunya', author: 'Sözcü Dünya' },
-    { url: 'https://news.google.com/rss/headlines/section/topic/WORLD?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Dünya' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=dunya', author: 'AA Dünya' }
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=dunya', author: 'AA Dünya' },
+    { url: 'https://www.ntv.com.tr/dunya.rss', author: 'NTV Dünya' }
   ],
   'Spor': [
     { url: 'https://www.trthaber.com/spor_articles.rss', author: 'TRT Spor' },
     { url: 'https://www.sozcu.com.tr/feeds-spor', author: 'Sözcü Spor' },
-    { url: 'https://news.google.com/rss/headlines/section/topic/SPORTS?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Spor' },
     { url: 'https://www.aa.com.tr/tr/rss/default?cat=spor', author: 'AA Spor' },
+    { url: 'https://www.ntv.com.tr/sporskor.rss', author: 'NTV Spor' },
     { url: 'https://www.haberturk.com/rss/kategori/spor.xml', author: 'Habertürk Spor' }
   ],
   'Bilim': [
     { url: 'https://www.webtekno.com/rss.xml', author: 'Webtekno' },
     { url: 'https://www.trthaber.com/bilim_teknoloji_articles.rss', author: 'TRT Bilim' },
-    { url: 'https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Bilim' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji', author: 'AA Bilim' }
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji', author: 'AA Bilim' },
+    { url: 'https://www.ntv.com.tr/teknoloji.rss', author: 'NTV Bilim' }
   ],
   'Kültür & Sanat': [
     { url: 'https://www.trthaber.com/kultur_sanat_articles.rss', author: 'TRT Kültür Sanat' },
     { url: 'https://www.aa.com.tr/tr/rss/default?cat=kultur', author: 'AA Kültür' },
     { url: 'https://www.haberturk.com/rss/kategori/kultur-sanat.xml', author: 'Habertürk Kültür' },
-    { url: 'https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=tr&gl=TR&ceid=TR:tr', author: 'Google Kültür' }
+    { url: 'https://www.ntv.com.tr/sanat.rss', author: 'NTV Sanat' }
   ]
 };
 

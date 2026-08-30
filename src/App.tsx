@@ -58,6 +58,8 @@ import { Bell, X } from 'lucide-react';
 import { initPushNotifications } from './lib/pushNotifications';
 import { initAdMob, showBannerAd, hideBannerAd } from './lib/admob';
 import { LegalView } from './components/LegalView';
+import { ThemeMode, getInitialTheme, applyTheme } from './lib/theme';
+import { focusAudioService, FOCUS_TRACKS } from './lib/focusAudioService';
 
 export default function App() {
   // Check if current URL is a legal page (/privacy, /terms, /gizlilik, /kullanim-sartlari, /eula)
@@ -86,6 +88,27 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<TabType>('read');
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => getInitialTheme());
+  const [focusAudioState, setFocusAudioState] = useState(() => focusAudioService.getState());
+
+  useEffect(() => {
+    applyTheme(themeMode);
+  }, [themeMode]);
+
+  useEffect(() => {
+    const unsub = focusAudioService.subscribe(() => {
+      setFocusAudioState(focusAudioService.getState());
+    });
+    return unsub;
+  }, []);
+
+  const handleToggleTheme = () => {
+    setThemeMode(prev => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      applyTheme(next);
+      return next;
+    });
+  };
   const [articles, setArticles] = useState<Article[]>([]);
   const [lastDocSnapshot, setLastDocSnapshot] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMoreArticles, setHasMoreArticles] = useState<boolean>(true);
@@ -1142,13 +1165,20 @@ export default function App() {
             onPause={() => ttsService.pause()}
             onSeek={(secs) => ttsService.seek(secs)}
             onSetRate={(rate) => ttsService.setRate(rate)}
-            isAmbientActive={isAmbientActive}
-            activeAmbientName={activeAmbientName}
+            isAmbientActive={isAmbientActive || focusAudioState.isPlaying}
+            activeAmbientName={focusAudioState.currentTrack?.title || activeAmbientName}
             onToggleAmbient={() => setIsAmbientMixerOpen(true)}
-            onStopAmbient={handleStopAllAmbient}
+            onStopAmbient={() => {
+              focusAudioService.stop();
+              handleStopAllAmbient();
+            }}
             onToggleLanguage={handleToggleLanguage}
             isTranslating={isTranslating}
             onImportSuccess={handleImportSuccess}
+            articles={articles}
+            bookmarkedIds={bookmarkedIds}
+            onPlayArticle={handlePlayArticle}
+            onToggleBookmark={handleToggleBookmark}
           />
         )}
 
@@ -1172,12 +1202,26 @@ export default function App() {
         )}
 
         {activeTab === 'library' && (
-          <LibraryTab
+          <ListenTab
+            playbackState={playbackState}
+            onPlay={() => ttsService.play()}
+            onPause={() => ttsService.pause()}
+            onSeek={(secs) => ttsService.seek(secs)}
+            onSetRate={(rate) => ttsService.setRate(rate)}
+            isAmbientActive={isAmbientActive || focusAudioState.isPlaying}
+            activeAmbientName={focusAudioState.currentTrack?.title || activeAmbientName}
+            onToggleAmbient={() => setIsAmbientMixerOpen(true)}
+            onStopAmbient={() => {
+              focusAudioService.stop();
+              handleStopAllAmbient();
+            }}
+            onToggleLanguage={handleToggleLanguage}
+            isTranslating={isTranslating}
+            onImportSuccess={handleImportSuccess}
             articles={articles}
             bookmarkedIds={bookmarkedIds}
             onPlayArticle={handlePlayArticle}
             onToggleBookmark={handleToggleBookmark}
-            onImportSuccess={handleImportSuccess}
           />
         )}
 
@@ -1248,12 +1292,25 @@ export default function App() {
         onAddCustomChannel={handleAddCustomAmbient}
       />
 
-      {/* Ambient Sound Floating Mini Player Bar */}
+      {/* Ambient & Focus Sound Floating Mini Player Bar (Exact Screenshot Look) */}
       <AmbientMiniPlayerBar
-        isAmbientActive={isAmbientActive}
-        activeAmbientName={activeAmbientName}
-        onStopAll={handleStopAllAmbient}
-        onOpenMixer={() => setIsAmbientMixerOpen(true)}
+        isAmbientActive={focusAudioState.isPlaying || isAmbientActive}
+        activeAmbientName={focusAudioState.currentTrack?.title || activeAmbientName || 'Sakin Yaz Yağmuru'}
+        categoryLabel={focusAudioState.currentTrack?.categoryLabel || 'DOĞA & AMBİYANS'}
+        trackIndex={
+          focusAudioState.currentTrack
+            ? `${FOCUS_TRACKS.filter(t => t.category === focusAudioState.currentTrack?.category).findIndex(t => t.id === focusAudioState.currentTrack?.id) + 1}/${FOCUS_TRACKS.filter(t => t.category === focusAudioState.currentTrack?.category).length}`
+            : '1/6'
+        }
+        isPlaying={focusAudioState.isPlaying || isAmbientActive}
+        onTogglePlay={() => focusAudioService.togglePlay()}
+        onPlayNext={() => focusAudioService.playNext()}
+        onPlayPrevious={() => focusAudioService.playPrevious()}
+        onStopAll={() => {
+          focusAudioService.stop();
+          handleStopAllAmbient();
+        }}
+        onOpenListenTab={() => handleTabChange('listen')}
         hasArticleMiniPlayer={activeTab !== 'listen' && !!playbackState.currentArticle && !playbackState.isMiniPlayerDismissed}
       />
 
@@ -1279,12 +1336,14 @@ export default function App() {
         />
       )}
 
-      {/* Bottom Mobile Navigation */}
+      {/* Bottom Mobile Navigation (iOS Liquid Glass Floating Capsule) */}
       <BottomNav
         activeTab={activeTab}
         onChangeTab={handleTabChange}
-        isPlaying={playbackState.isPlaying}
+        isPlaying={playbackState.isPlaying || focusAudioState.isPlaying}
         isHidden={isReaderNavHidden}
+        themeMode={themeMode}
+        onToggleTheme={handleToggleTheme}
       />
     </div>
   );

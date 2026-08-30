@@ -4,9 +4,9 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
  * Hardcoded API Base URLs for live backend services
  * Used for Capacitor native iOS/Android apps and remote fallbacks.
  */
+export const RENDER_BACKEND_URL = 'https://vox-ai-repo.onrender.com';
 export const LIVE_BACKEND_URL = 'https://ais-dev-sefrhwmpi2727osvklse3f-2538769099.europe-west2.run.app';
 export const SECONDARY_BACKEND_URL = 'https://ais-pre-sefrhwmpi2727osvklse3f-2538769099.europe-west2.run.app';
-export const RENDER_BACKEND_URL = 'https://vox-ai-repo.onrender.com';
 
 export const isNativeCapacitor = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -23,18 +23,34 @@ export const isNativeCapacitor = (): boolean => {
 
 /**
  * Global API Base URL:
- * Native iOS / Android -> Live Cloud Run backend
+ * Native iOS / Android -> Live Render backend
  * Web -> '' (relative)
  */
 export const API_BASE_URL: string = isNativeCapacitor()
-  ? LIVE_BACKEND_URL
+  ? RENDER_BACKEND_URL
   : '';
 
 export const getApiUrl = (endpoint: string): string => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const baseUrl = isNativeCapacitor() ? LIVE_BACKEND_URL : '';
+  const baseUrl = isNativeCapacitor() ? RENDER_BACKEND_URL : '';
   return `${baseUrl}${cleanEndpoint}`;
 };
+
+/**
+ * Helper to check if a response body is an unwanted HTML document
+ * (e.g. Google Cloud preview sign-in page or dev auth interstitial)
+ */
+function isHtmlDocument(body: string): boolean {
+  if (!body) return false;
+  const trimmed = body.trim().toLowerCase();
+  return (
+    trimmed.startsWith('<!doctype html') ||
+    trimmed.startsWith('<html') ||
+    trimmed.includes('accounts.google.com') ||
+    trimmed.includes('__cookie_check') ||
+    (trimmed.startsWith('<') && trimmed.includes('</head>'))
+  );
+}
 
 export async function safeApiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -43,15 +59,16 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
   const candidateUrls: string[] = [];
 
   if (isNative) {
-    // In native iOS/Android, ais-pre (public shared) and render are accessible without cloud run dev auth cookies
-    candidateUrls.push(`${SECONDARY_BACKEND_URL}${cleanEndpoint}`);
+    // In native iOS/Android, Render backend is open without Google preview cookie barriers
     candidateUrls.push(`${RENDER_BACKEND_URL}${cleanEndpoint}`);
+    candidateUrls.push(`${SECONDARY_BACKEND_URL}${cleanEndpoint}`);
     candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
   } else {
+    // In browser, relative URL hits the Vite/Express dev server directly
     candidateUrls.push(cleanEndpoint);
+    candidateUrls.push(`${RENDER_BACKEND_URL}${cleanEndpoint}`);
     candidateUrls.push(`${SECONDARY_BACKEND_URL}${cleanEndpoint}`);
     candidateUrls.push(`${LIVE_BACKEND_URL}${cleanEndpoint}`);
-    candidateUrls.push(`${RENDER_BACKEND_URL}${cleanEndpoint}`);
   }
 
   let lastError: any = null;
@@ -76,17 +93,28 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
         const nativeRes = await CapacitorHttp.request({
           url: url,
           method: options?.method || 'GET',
-          headers: (options?.headers as Record<string, string>) || { 'Content-Type': 'application/json' },
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            ...(options?.headers as Record<string, string>)
+          },
           data: bodyData,
-          connectTimeout: 5000,
-          readTimeout: 10000
+          connectTimeout: 8000,
+          readTimeout: 20000
         });
 
         const status = nativeRes.status || 200;
         const responseBody = typeof nativeRes.data === 'object' ? JSON.stringify(nativeRes.data) : String(nativeRes.data || '');
+
+        // If endpoint is a JSON endpoint but returned an HTML preview auth challenge, skip to next candidate
+        if (!cleanEndpoint.startsWith('/api/tts') && isHtmlDocument(responseBody)) {
+          console.warn(`[safeApiFetch] Received HTML challenge from ${url}, trying next candidate...`);
+          continue;
+        }
+
         const res = new Response(responseBody, {
           status: status,
-          headers: nativeRes.headers as Record<string, string>,
+          headers: (nativeRes.headers as Record<string, string>) || { 'Content-Type': 'application/json' },
         });
 
         if (res.ok || status === 400 || status === 401 || status === 403 || status === 422) {
@@ -98,20 +126,31 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
       }
     }
 
-    // 2. Standard fetch with 6s abort timeout
+    // 2. Standard fetch with abort timeout
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
       const res = await fetch(url, {
         ...options,
         signal: controller.signal,
         headers: {
+          'Accept': 'application/json, text/plain, */*',
           'Content-Type': 'application/json',
           ...options?.headers,
         }
       });
       clearTimeout(timeoutId);
+
+      // Clone and inspect text to avoid accepting HTML auth challenges
+      if (res.ok && !cleanEndpoint.startsWith('/api/tts')) {
+        const cloned = res.clone();
+        const text = await cloned.text();
+        if (isHtmlDocument(text)) {
+          console.warn(`[safeApiFetch] Received HTML login from ${url}, trying next...`);
+          continue;
+        }
+      }
 
       if (res.ok) return res;
       if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 422) {

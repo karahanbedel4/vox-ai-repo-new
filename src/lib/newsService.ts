@@ -1,6 +1,6 @@
 import { Article } from '../types';
-import { safeApiFetch } from './api';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { safeApiFetch, isNativeCapacitor } from './api';
+import { CapacitorHttp } from '@capacitor/core';
 
 /**
  * UTM Builder for News attribution and referrals
@@ -42,59 +42,59 @@ export function buildUtmUrl(originalUrl: string, title?: string): string {
 export const RSS_FEEDS_BY_CATEGORY: Record<string, Array<{ url: string; author: string }>> = {
   'Tümü': [
     { url: 'https://www.trthaber.com/manset_articles.rss', author: 'TRT Haber' },
-    { url: 'https://www.sozcu.com.tr/feeds-son-dakika', author: 'Sözcü' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=gundem', author: 'Anadolu Ajansı' },
     { url: 'https://feeds.bbci.co.uk/turkce/rss.xml', author: 'BBC Türkçe' },
+    { url: 'https://www.ntv.com.tr/gundem.rss', author: 'NTV' },
     { url: 'https://www.haberturk.com/rss/manset.xml', author: 'Habertürk' },
-    { url: 'https://www.ntv.com.tr/gundem.rss', author: 'NTV' }
+    { url: 'https://www.sozcu.com.tr/feeds-son-dakika', author: 'Sözcü' },
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=gundem', author: 'Anadolu Ajansı' }
   ],
   'Gündem': [
     { url: 'https://www.trthaber.com/gundem_articles.rss', author: 'TRT Haber' },
-    { url: 'https://www.sozcu.com.tr/feeds-son-dakika', author: 'Sözcü' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=gundem', author: 'Anadolu Ajansı' },
     { url: 'https://feeds.bbci.co.uk/turkce/rss.xml', author: 'BBC Türkçe' },
     { url: 'https://www.ntv.com.tr/gundem.rss', author: 'NTV Gündem' },
-    { url: 'https://www.haberturk.com/rss/manset.xml', author: 'Habertürk' }
+    { url: 'https://www.haberturk.com/rss/manset.xml', author: 'Habertürk' },
+    { url: 'https://www.sozcu.com.tr/feeds-son-dakika', author: 'Sözcü' },
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=gundem', author: 'Anadolu Ajansı' }
   ],
   'Teknoloji': [
     { url: 'https://www.webtekno.com/rss.xml', author: 'Webtekno' },
     { url: 'https://www.trthaber.com/bilim_teknoloji_articles.rss', author: 'TRT Bilim Teknoloji' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji', author: 'AA Teknoloji' },
     { url: 'https://www.ntv.com.tr/teknoloji.rss', author: 'NTV Teknoloji' },
-    { url: 'https://www.haberturk.com/rss/kategori/teknoloji.xml', author: 'Habertürk Teknoloji' }
+    { url: 'https://www.haberturk.com/rss/kategori/teknoloji.xml', author: 'Habertürk Teknoloji' },
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji', author: 'AA Teknoloji' }
   ],
   'Ekonomi': [
     { url: 'https://www.trthaber.com/ekonomi_articles.rss', author: 'TRT Ekonomi' },
-    { url: 'https://www.sozcu.com.tr/feeds-ekonomi', author: 'Sözcü Ekonomi' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=ekonomi', author: 'AA Finans' },
     { url: 'https://www.ntv.com.tr/ekonomi.rss', author: 'NTV Ekonomi' },
-    { url: 'https://www.haberturk.com/rss/kategori/ekonomi.xml', author: 'Habertürk Ekonomi' }
+    { url: 'https://www.haberturk.com/rss/kategori/ekonomi.xml', author: 'Habertürk Ekonomi' },
+    { url: 'https://www.sozcu.com.tr/feeds-ekonomi', author: 'Sözcü Ekonomi' },
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=ekonomi', author: 'AA Finans' }
   ],
   'Dünya': [
     { url: 'https://feeds.bbci.co.uk/turkce/rss.xml', author: 'BBC Türkçe' },
     { url: 'https://www.trthaber.com/dunya_articles.rss', author: 'TRT Dünya' },
+    { url: 'https://www.ntv.com.tr/dunya.rss', author: 'NTV Dünya' },
     { url: 'https://www.sozcu.com.tr/feeds-dunya', author: 'Sözcü Dünya' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=dunya', author: 'AA Dünya' },
-    { url: 'https://www.ntv.com.tr/dunya.rss', author: 'NTV Dünya' }
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=dunya', author: 'AA Dünya' }
   ],
   'Spor': [
     { url: 'https://www.trthaber.com/spor_articles.rss', author: 'TRT Spor' },
-    { url: 'https://www.sozcu.com.tr/feeds-spor', author: 'Sözcü Spor' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=spor', author: 'AA Spor' },
     { url: 'https://www.ntv.com.tr/sporskor.rss', author: 'NTV Spor' },
-    { url: 'https://www.haberturk.com/rss/kategori/spor.xml', author: 'Habertürk Spor' }
+    { url: 'https://www.haberturk.com/rss/kategori/spor.xml', author: 'Habertürk Spor' },
+    { url: 'https://www.sozcu.com.tr/feeds-spor', author: 'Sözcü Spor' },
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=spor', author: 'AA Spor' }
   ],
   'Bilim': [
     { url: 'https://www.webtekno.com/rss.xml', author: 'Webtekno' },
     { url: 'https://www.trthaber.com/bilim_teknoloji_articles.rss', author: 'TRT Bilim' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji', author: 'AA Bilim' },
-    { url: 'https://www.ntv.com.tr/teknoloji.rss', author: 'NTV Bilim' }
+    { url: 'https://www.ntv.com.tr/teknoloji.rss', author: 'NTV Bilim' },
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji', author: 'AA Bilim' }
   ],
   'Kültür & Sanat': [
     { url: 'https://www.trthaber.com/kultur_sanat_articles.rss', author: 'TRT Kültür Sanat' },
-    { url: 'https://www.aa.com.tr/tr/rss/default?cat=kultur', author: 'AA Kültür' },
+    { url: 'https://www.ntv.com.tr/sanat.rss', author: 'NTV Sanat' },
     { url: 'https://www.haberturk.com/rss/kategori/kultur-sanat.xml', author: 'Habertürk Kültür' },
-    { url: 'https://www.ntv.com.tr/sanat.rss', author: 'NTV Sanat' }
+    { url: 'https://www.aa.com.tr/tr/rss/default?cat=kultur', author: 'AA Kültür' }
   ]
 };
 
@@ -187,23 +187,52 @@ export function extractKeyHighlights(title: string, text: string, author: string
 }
 
 /**
- * Ham RSS XML metnini ayrıştırıp zengin içerikli Article nesneleri dizisine dönüştürür
+ * Ham RSS/Atom XML metnini ayrıştırıp zengin içerikli Article nesneleri dizisine dönüştürür
  */
 export function parseRssXmlToArticles(xmlText: string, category: string, defaultAuthor: string): Article[] {
   try {
-    const itemMatches = xmlText.match(/<item[\s\S]*?<\/item>/gi) || [];
+    if (!xmlText) return [];
+
+    // RSS <item> veya Atom <entry> eşleşmeleri
+    let itemMatches = xmlText.match(/<item[\s\S]*?<\/item>/gi);
+    if (!itemMatches || itemMatches.length === 0) {
+      itemMatches = xmlText.match(/<entry[\s\S]*?<\/entry>/gi);
+    }
+    if (!itemMatches || itemMatches.length === 0) {
+      return [];
+    }
+
     const parsedArticles: Article[] = [];
 
     for (let i = 0; i < Math.min(itemMatches.length, 15); i++) {
       const itemStr = itemMatches[i];
       const titleMatch = itemStr.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-      const descMatch = itemStr.match(/<description[^>]*>([\s\S]*?)<\/description>/i);
-      const contentMatch = itemStr.match(/<content:encoded[^>]*>([\s\S]*?)<\/content:encoded>/i);
+      const descMatch = itemStr.match(/<description[^>]*>([\s\S]*?)<\/description>/i) ||
+                        itemStr.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i);
+      const contentMatch = itemStr.match(/<content:encoded[^>]*>([\s\S]*?)<\/content:encoded>/i) ||
+                           itemStr.match(/<content[^>]*>([\s\S]*?)<\/content>/i);
       const authorMatch = itemStr.match(/<author[^>]*>([\s\S]*?)<\/author>/i) || 
                           itemStr.match(/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/i) ||
+                          itemStr.match(/<name[^>]*>([\s\S]*?)<\/name>/i) ||
                           itemStr.match(/<source[^>]*>([\s\S]*?)<\/source>/i);
-      const linkMatch = itemStr.match(/<link[^>]*>([\s\S]*?)<\/link>/i) || itemStr.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
-      const pubDateMatch = itemStr.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i);
+
+      // Link taraması (RSS <link>url</link>, Atom <link href="url"/>, <guid>url</guid>)
+      let sourceUrl = '';
+      const linkMatch = itemStr.match(/<link[^>]*>([\s\S]*?)<\/link>/i);
+      const linkHrefMatch = itemStr.match(/<link[^>]+href=["']([^"']+)["']/i);
+      const guidMatch = itemStr.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
+
+      if (linkMatch && linkMatch[1] && linkMatch[1].trim() && !linkMatch[1].includes('<')) {
+        sourceUrl = linkMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+      } else if (linkHrefMatch && linkHrefMatch[1]) {
+        sourceUrl = linkHrefMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+      } else if (guidMatch && guidMatch[1] && guidMatch[1].trim().startsWith('http')) {
+        sourceUrl = guidMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+      }
+
+      const pubDateMatch = itemStr.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i) ||
+                           itemStr.match(/<published[^>]*>([\s\S]*?)<\/published>/i) ||
+                           itemStr.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i);
 
       // Çoklu görsel deseni taraması (enclosure, media:content, thumbnail, img src)
       let extractedImg = '';
@@ -242,7 +271,6 @@ export function parseRssXmlToArticles(xmlText: string, category: string, default
 
       const parsedDescription = descMatch ? cleanRssText(descMatch[1]) : '';
       const parsedFullContent = contentMatch ? cleanRssText(contentMatch[1]) : '';
-      const sourceUrl = linkMatch ? linkMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : '';
       const pubDate = pubDateMatch ? pubDateMatch[1].trim() : new Date().toISOString();
 
       if (title && title.length > 8) {
@@ -259,9 +287,9 @@ export function parseRssXmlToArticles(xmlText: string, category: string, default
         if (articleBody && articleBody.length > 80) {
           finalContent = articleBody;
         } else if (articleBody && articleBody.length > 20) {
-          finalContent = `${articleBody}\n\n${author} tarafından aktarılan son dakika gelişmelerine göre olayla ilgili inceleme ve süreç yakından takip ediliyor. İlgili kurum ve yetkililerden yapılacak açıklamalar doğrultusunda detaylar aktarılacaktır.`;
+          finalContent = `${articleBody}\n\n${author} tarafından aktarılan son dakika gelişmelerine göre olayla ilgili süreç yakından takip ediliyor. İlgili kurum ve yetkililerden yapılacak açıklamalar doğrultusunda detaylar aktarılacaktır.`;
         } else {
-          finalContent = `${title}.\n\n${author} kaynaklı güncel haber akışında yer alan bilgilere göre ilgili konudaki gelişmeler kamuoyu ve sektör temsilcileri tarafından dikkatle izleniyor.`;
+          finalContent = `${title}.\n\n${author} kaynaklı güncel haber akışında yer alan bilgilere göre ilgili konudaki gelişmeler kamuoyu tarafından dikkatle izleniyor.`;
         }
 
         // Kısa özet oluştur (kart ve üst gösterim için)
@@ -355,18 +383,20 @@ export async function summarizeArticleWithGemini(article: Article): Promise<{
  */
 async function fetchRssUrl(url: string, category: string, author: string): Promise<Article[]> {
   // 1. Native iOS / Android CapacitorHttp (Zero CORS restriction)
-  if (Capacitor.isNativePlatform()) {
+  if (isNativeCapacitor()) {
     try {
       const nativeRes = await CapacitorHttp.get({
         url,
         headers: {
           'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
           'Accept': 'application/rss+xml, application/xml, text/xml, */*'
-        }
+        },
+        connectTimeout: 6000,
+        readTimeout: 10000
       });
       if (nativeRes.status === 200 && nativeRes.data) {
-        const xmlText = typeof nativeRes.data === 'string' ? nativeRes.data : '';
-        if (xmlText) {
+        const xmlText = typeof nativeRes.data === 'string' ? nativeRes.data : JSON.stringify(nativeRes.data);
+        if (xmlText && (xmlText.includes('<item') || xmlText.includes('<entry') || xmlText.includes('<rss') || xmlText.includes('<feed'))) {
           const articles = parseRssXmlToArticles(xmlText, category, author);
           if (articles.length > 0) return articles;
         }
@@ -379,7 +409,7 @@ async function fetchRssUrl(url: string, category: string, author: string): Promi
   // 2. Direct Web fetch with abort controller
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
@@ -425,7 +455,7 @@ export async function fetchNewsByCategory(category: string = 'Tümü', lang: str
     console.warn('Backend news API check notice:', err);
   }
 
-  // 2. Multi-Feed Parallel RSS Extraction
+  // 2. Multi-Feed Parallel RSS Extraction (Native iOS direct request or Web)
   const targetFeeds = RSS_FEEDS_BY_CATEGORY[category] || RSS_FEEDS_BY_CATEGORY['Tümü'];
   try {
     const feedResults = await Promise.allSettled(

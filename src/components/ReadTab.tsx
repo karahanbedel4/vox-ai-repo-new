@@ -334,12 +334,12 @@ export const ReadTab: React.FC<ReadTabProps> = ({
   });
 
   return (
-    <div className="pt-20 pb-28 px-4 max-w-md mx-auto space-y-6 text-on-surface">
+    <div className="pt-16 sm:pt-20 pb-32 sm:pb-36 px-3.5 sm:px-4 max-w-md mx-auto space-y-4 sm:space-y-5 text-on-surface">
       {/* Top Header Bar & Zen Mode Quick Toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Bülten & Haberler</h1>
-          <p className="text-xs text-on-surface-variant">Yapay zeka ile kişiselleştirilmiş sesli bültenler</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-lg sm:text-xl font-extrabold tracking-tight truncate">Bülten & Haberler</h1>
+          <p className="text-[10px] sm:text-xs text-on-surface-variant truncate">Yapay zeka ile kişiselleştirilmiş sesli akış</p>
         </div>
         <button
           onClick={() => {
@@ -347,14 +347,14 @@ export const ReadTab: React.FC<ReadTabProps> = ({
             setIsZenMode(nextZen);
             if (onScrollDirectionChange) onScrollDirectionChange(nextZen);
           }}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border transition-all ${
+          className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-1.5 border transition-all shrink-0 ${
             isZenMode 
               ? 'bg-primary text-on-primary border-primary shadow-sm' 
               : 'bg-surface-container/80 text-on-surface-variant border-white/10 hover:border-white/20'
           }`}
           title="Okuma Modu (Sadece metne odaklan, gezinti menülerini gizle)"
         >
-          {isZenMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {isZenMode ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
           <span>{isZenMode ? 'Okuma Modu: Açık' : 'Okuma Modu'}</span>
         </button>
       </div>
@@ -479,9 +479,9 @@ export const ReadTab: React.FC<ReadTabProps> = ({
         <>
           {/* Daily Briefings Banner (Hero Card) */}
           {featuredArticle && selectedCategory === 'Tümü' && (
-            <section className="space-y-3">
+            <section className="space-y-2.5 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="font-display text-lg font-bold text-on-surface">Günün Öne Çıkanı</h2>
+                <h2 className="font-display text-base sm:text-lg font-bold text-on-surface">Günün Öne Çıkanı</h2>
               </div>
 
               <div className="relative rounded-2xl overflow-hidden border border-card-border bg-surface-container shadow-sm group">
@@ -493,35 +493,35 @@ export const ReadTab: React.FC<ReadTabProps> = ({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
                   
-                  <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-primary border border-primary/30">
+                  <div className="absolute top-2.5 left-2.5 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-bold text-primary border border-primary/30">
                     LIVE AUDIO
                   </div>
 
-                  <div className="absolute bottom-3 right-3 text-[10px] font-mono bg-black/70 px-2 py-0.5 rounded text-white/80">
+                  <div className="absolute bottom-2.5 right-2.5 text-[9px] font-mono bg-black/70 px-1.5 py-0.5 rounded text-white/80 border border-white/10">
                     {Math.floor(featuredArticle.durationSeconds / 60)} dk
                   </div>
                 </div>
 
-                <div className="p-4 space-y-2">
-                  <span className="text-[10px] uppercase font-bold text-primary tracking-wider">
+                <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2">
+                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-primary tracking-wider">
                     {featuredArticle.category} • {featuredArticle.author}
                   </span>
-                  <h3 className="font-display text-base font-bold leading-snug text-on-surface">
+                  <h3 className="font-display text-sm sm:text-base font-bold leading-snug text-on-surface">
                     {featuredArticle.title}
                   </h3>
-                  <p className="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
+                  <p className="text-[11px] sm:text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
                     {featuredArticle.summary}
                   </p>
 
-                  <div className="pt-2 flex items-center justify-between">
+                  <div className="pt-1.5 sm:pt-2 flex items-center justify-between">
                     <button
                       onClick={() => {
                         triggerHaptic();
                         onPlayArticle(featuredArticle);
                       }}
-                      className="bg-primary text-on-primary px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 active:scale-95 transition-transform shadow-sm"
+                      className="bg-primary text-on-primary px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-xs font-bold flex items-center gap-1.5 sm:gap-2 active:scale-95 transition-transform shadow-sm"
                     >
-                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-current" />
                       <span>Dinlemeye Başla</span>
                     </button>
 
@@ -530,10 +530,10 @@ export const ReadTab: React.FC<ReadTabProps> = ({
                         triggerHaptic();
                         setReadingArticle(featuredArticle);
                       }}
-                      className="text-xs text-on-surface-variant hover:text-on-surface flex items-center gap-1 font-medium"
+                      className="text-[11px] sm:text-xs text-on-surface-variant hover:text-on-surface flex items-center gap-1 font-medium"
                     >
                       <span>Metni Oku</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -664,14 +664,14 @@ export const ReadTab: React.FC<ReadTabProps> = ({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="font-display text-lg font-bold">
+            <h2 className="font-display text-base sm:text-lg font-bold">
               {selectedCategory === 'Dönüştürülenler' ? 'Dönüştürülen İçerik Listeniz' : 'Haber Akışı'}
             </h2>
             {selectedCategory !== 'Dönüştürülenler' && !isOffline && (
               <button
                 onClick={() => loadCategoryNews(false)}
                 disabled={isRefreshing}
-                className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-50"
+                className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-50"
                 title="Haber akışını güncel verilerle yenile"
               >
                 <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -679,174 +679,155 @@ export const ReadTab: React.FC<ReadTabProps> = ({
               </button>
             )}
           </div>
-          <span className="text-xs font-mono text-on-surface-variant">{filteredArticles.length} makale</span>
+          <span className="text-[11px] sm:text-xs font-mono text-on-surface-variant">{filteredArticles.length} makale</span>
         </div>
 
-        {/* Scrollable container for virtual rendering */}
-        <div ref={listParentRef} className="space-y-3 max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: '100%',
-              position: 'relative',
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const article = filteredArticles[virtualRow.index];
-              if (!article) return null;
-              const isBookmarked = bookmarkedIds.includes(article.id);
+        {/* Natural Smooth News Feed List */}
+        <div className="space-y-2.5 sm:space-y-3">
+          {filteredArticles.map((article) => {
+            const isBookmarked = bookmarkedIds.includes(article.id);
 
-              return (
-                <div
-                  key={article.id}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
+            return (
+              <div
+                key={article.id}
+                className="bg-surface-container border border-card-border p-2.5 sm:p-3.5 rounded-2xl flex gap-2.5 sm:gap-3 items-center hover:border-primary/40 transition-all shadow-sm group"
+              >
+                {/* Thumbnail */}
+                <div 
+                  onClick={() => {
+                    triggerHaptic();
+                    setReadingArticle(article);
                   }}
-                  className="pb-3"
+                  className="relative w-18 h-18 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 bg-surface-variant flex flex-col items-center justify-center p-1.5 sm:p-2 text-primary border border-card-border cursor-pointer group-hover:border-primary/50 transition-colors"
                 >
-                  <div className="bg-surface-container border border-card-border p-3.5 rounded-2xl flex gap-3 items-center hover:border-primary/40 transition-all shadow-sm">
-                    {/* Thumbnail */}
-                    <div 
-                      onClick={() => {
-                        triggerHaptic();
-                        setReadingArticle(article);
-                      }}
-                      className="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-surface-variant flex flex-col items-center justify-center p-2 text-primary border border-card-border cursor-pointer"
-                    >
-                      {article.imageUrl ? (
-                        <img
-                          src={article.imageUrl}
-                          alt={article.title}
-                          className="w-full h-full object-cover opacity-90 absolute inset-0"
-                        />
+                  {article.imageUrl ? (
+                    <img
+                      src={article.imageUrl}
+                      alt={article.title}
+                      className="w-full h-full object-cover opacity-90 absolute inset-0 group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center">
+                      {article.sourceType === 'youtube' ? (
+                        <Youtube className="w-5 h-5 sm:w-6 sm:h-6 text-red-500 mb-1" />
+                      ) : article.sourceType === 'pdf' ? (
+                        <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500 mb-1" />
+                      ) : article.sourceType === 'web' ? (
+                        <Link2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 mb-1" />
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-center">
-                          {article.sourceType === 'youtube' ? (
-                            <Youtube className="w-6 h-6 text-red-500 mb-1" />
-                          ) : article.sourceType === 'pdf' ? (
-                            <FileText className="w-6 h-6 text-amber-500 mb-1" />
-                          ) : article.sourceType === 'web' ? (
-                            <Link2 className="w-6 h-6 text-blue-500 mb-1" />
-                          ) : (
-                            <BookOpen className="w-6 h-6 text-primary mb-1 opacity-80" />
-                          )}
-                          <span className="text-[9px] font-mono font-bold text-on-surface-variant truncate max-w-full">
-                            {article.category || 'Dönüştürülen'}
-                          </span>
-                        </div>
+                        <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-primary mb-1 opacity-80" />
                       )}
-                      <div className="absolute inset-0 bg-black/10"></div>
-                      <div className="absolute bottom-1 right-1 bg-black/70 px-1.5 py-0.5 rounded text-[9px] font-mono text-primary">
-                        {Math.floor((article.durationSeconds || 180) / 60)}m
-                      </div>
+                      <span className="text-[8px] sm:text-[9px] font-mono font-bold text-on-surface-variant truncate max-w-full">
+                        {article.category || 'Dönüştürülen'}
+                      </span>
                     </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/10"></div>
+                  <div className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-sm px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-mono text-primary border border-white/10">
+                    {Math.floor((article.durationSeconds || 180) / 60)}m
+                  </div>
+                </div>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          {article.sourceType === 'youtube' ? (
-                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider flex items-center gap-1 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
-                              <Youtube className="w-3 h-3" /> YouTube
-                            </span>
-                          ) : article.sourceType === 'pdf' ? (
-                            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                              <FileText className="w-3 h-3" /> PDF
-                            </span>
-                          ) : article.sourceType === 'web' ? (
-                            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
-                              <Link2 className="w-3 h-3" /> Web Bağlantısı
-                            </span>
-                          ) : article.sourceType === 'text' ? (
-                            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                              <FileText className="w-3 h-3" /> Metin
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">
-                              {(() => {
-                                const cat = article.category || 'Gündem';
-                                if (cat.length > 18 || (cat.includes(' ') && !['Kültür & Sanat', 'Etik & Bilim'].includes(cat))) {
-                                  if (cat.toLowerCase().includes('teknoloji')) return 'Teknoloji';
-                                  if (cat.toLowerCase().includes('ekonomi') || cat.toLowerCase().includes('finans')) return 'Ekonomi';
-                                  if (cat.toLowerCase().includes('dünya') || cat.toLowerCase().includes('dunya')) return 'Dünya';
-                                  if (cat.toLowerCase().includes('kültür') || cat.toLowerCase().includes('kultur')) return 'Kültür & Sanat';
-                                  return 'Gündem';
-                                }
-                                return cat;
-                              })()}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            triggerHaptic();
-                            onToggleBookmark(article.id);
-                          }}
-                          className={`p-1 rounded-full transition-all active:scale-90 ${
-                            isBookmarked 
-                              ? 'text-primary bg-primary/10 border border-primary/30 shadow-sm' 
-                              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant'
-                          }`}
-                          title={isBookmarked ? "Favorilerden Çıkar" : "Favorilere Ekle"}
-                        >
-                          <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-primary' : ''}`} />
-                        </button>
-                      </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0 space-y-0.5 sm:space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      {article.sourceType === 'youtube' ? (
+                        <span className="text-[9px] sm:text-[10px] font-bold text-red-500 uppercase tracking-wider flex items-center gap-1 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+                          <Youtube className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> YouTube
+                        </span>
+                      ) : article.sourceType === 'pdf' ? (
+                        <span className="text-[9px] sm:text-[10px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                          <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> PDF
+                        </span>
+                      ) : article.sourceType === 'web' ? (
+                        <span className="text-[9px] sm:text-[10px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                          <Link2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Web
+                        </span>
+                      ) : article.sourceType === 'text' ? (
+                        <span className="text-[9px] sm:text-[10px] font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                          <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Metin
+                        </span>
+                      ) : (
+                        <span className="text-[9px] sm:text-[10px] font-bold text-primary uppercase tracking-wider">
+                          {(() => {
+                            const cat = article.category || 'Gündem';
+                            if (cat.length > 18 || (cat.includes(' ') && !['Kültür & Sanat', 'Etik & Bilim'].includes(cat))) {
+                              if (cat.toLowerCase().includes('teknoloji')) return 'Teknoloji';
+                              if (cat.toLowerCase().includes('ekonomi') || cat.toLowerCase().includes('finans')) return 'Ekonomi';
+                              if (cat.toLowerCase().includes('dünya') || cat.toLowerCase().includes('dunya')) return 'Dünya';
+                              if (cat.toLowerCase().includes('kültür') || cat.toLowerCase().includes('kultur')) return 'Kültür & Sanat';
+                              return 'Gündem';
+                            }
+                            return cat;
+                          })()}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerHaptic();
+                        onToggleBookmark(article.id);
+                      }}
+                      className={`p-1 rounded-full transition-all active:scale-90 ${
+                        isBookmarked 
+                          ? 'text-primary bg-primary/10 border border-primary/30 shadow-sm' 
+                          : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant'
+                      }`}
+                      title={isBookmarked ? "Favorilerden Çıkar" : "Favorilere Ekle"}
+                    >
+                      <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-primary' : ''}`} />
+                    </button>
+                  </div>
 
-                      <h4 
+                  <h4 
+                    onClick={() => {
+                      triggerHaptic();
+                      setReadingArticle(article);
+                    }}
+                    className="font-display text-xs sm:text-sm font-bold line-clamp-2 text-on-surface cursor-pointer hover:text-primary transition-colors leading-snug"
+                  >
+                    {sanitizeText(article.title)}
+                  </h4>
+
+                  <p className="text-[10px] sm:text-[11px] text-on-surface-variant line-clamp-2 leading-relaxed">
+                    {sanitizeText(article.summary)}
+                  </p>
+
+                  <div className="pt-1 flex items-center justify-between text-[9px] sm:text-[10px] text-on-surface-variant border-t border-card-border mt-1">
+                    <span className="truncate max-w-[80px] sm:max-w-[100px] font-medium">{article.author || 'VOX AI'}</span>
+                    
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
                         onClick={() => {
                           triggerHaptic();
                           setReadingArticle(article);
                         }}
-                        className="font-display text-xs font-bold truncate text-on-surface cursor-pointer hover:text-primary transition-colors"
+                        className="bg-surface-variant hover:bg-surface-container-high text-on-surface border border-card-border px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full font-bold flex items-center gap-1 text-[9px] sm:text-[10px] transition-colors"
                       >
-                        {sanitizeText(article.title)}
-                      </h4>
+                        <BookOpen className="w-2.5 h-2.5 text-primary" />
+                        <span>Metni Oku</span>
+                      </button>
 
-                      <p className="text-[11px] text-on-surface-variant line-clamp-1">
-                        {sanitizeText(article.summary)}
-                      </p>
-
-                      <div className="pt-1.5 flex items-center justify-between text-[10px] text-on-surface-variant border-t border-card-border">
-                        <span className="truncate max-w-[90px] font-medium">{article.author || 'VOX AI'}</span>
-                        
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={() => {
-                              triggerHaptic();
-                              setReadingArticle(article);
-                            }}
-                            className="bg-surface-variant hover:bg-surface-container-high text-on-surface border border-card-border px-2.5 py-1 rounded-full font-bold flex items-center gap-1 text-[10px] transition-colors"
-                          >
-                            <BookOpen className="w-2.5 h-2.5 text-primary" />
-                            <span>Metni Oku</span>
-                          </button>
-
-                          {!isOffline && (
-                            <button
-                              onClick={() => {
-                                triggerHaptic();
-                                onPlayArticle(article);
-                              }}
-                              className="bg-primary/15 text-primary hover:bg-primary/25 border border-primary/30 px-2.5 py-1 rounded-full font-bold flex items-center gap-1 active:scale-95 transition-transform text-[10px]"
-                            >
-                              <Play className="w-2.5 h-2.5 fill-current" />
-                              <span>Dinle</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                      {!isOffline && (
+                        <button
+                          onClick={() => {
+                            triggerHaptic();
+                            onPlayArticle(article);
+                          }}
+                          className="bg-primary/15 text-primary hover:bg-primary/25 border border-primary/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full font-bold flex items-center gap-1 active:scale-95 transition-transform text-[9px] sm:text-[10px]"
+                        >
+                          <Play className="w-2.5 h-2.5 fill-current" />
+                          <span>Dinle</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* PAGINATION / LOAD MORE CURSOR TRIGGER */}

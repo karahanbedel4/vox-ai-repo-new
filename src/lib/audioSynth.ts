@@ -1,7 +1,7 @@
 /**
- * WoodRainSynth - Web Audio API Client-Side Ambient Generator
- * Synthesizes organic, gentle natural sounds (rain, forest wood drops, ocean waves, fireplace, binaural alpha waves)
- * Zero harsh frequencies, zero ringing pitch, 100% warm and soothing.
+ * WoodRainSynth - Ultra-Soothing Web Audio API Sound Generator
+ * Generates warm, velvet-smooth natural acoustics and binaural sleep/focus drones.
+ * ZERO harsh treble, ZERO white-noise hiss, 100% warm, relaxing, and sleep-friendly.
  */
 
 export class WoodRainSynthEngine {
@@ -13,15 +13,15 @@ export class WoodRainSynthEngine {
   private channelGains: Map<string, GainNode> = new Map();
   private channelAudios: Map<string, HTMLAudioElement> = new Map();
 
-  // Active generators
+  // Active procedural generators
   private activeGenerators: { stop: () => void }[] = [];
 
   constructor() {
-    // Lazy initialized on first user interaction
+    // Lazy initialized on first user touch / interaction
   }
 
   /**
-   * Unlock Web Audio API during user touch / click gesture (crucial for iOS WKWebView)
+   * Unlock Web Audio API during user touch / click gesture (vital for iOS WKWebView)
    */
   public unlockAudio() {
     const ctx = this.initCtx();
@@ -58,11 +58,11 @@ export class WoodRainSynthEngine {
         const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         this.ctx = new AudioCtx();
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.75;
+        this.masterGain.gain.value = 0.7;
         this.masterGain.connect(this.ctx.destination);
       }
       if (this.ctx.state === 'suspended') {
-        this.ctx.resume().catch(() => {});
+        ctxResume(this.ctx);
       }
       return this.ctx;
     } catch (e) {
@@ -77,12 +77,13 @@ export class WoodRainSynthEngine {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // Build synthesized sound generators with warm, pleasant filters
-    this.startRainSynth();
-    this.startWoodRainSynth();
-    this.startOceanSynth();
-    this.startFireplaceSynth();
+    // Build ultra-warm, soft synthesized generators
+    this.startVelvetRainSynth();
+    this.startForestWoodRainSynth();
+    this.startDeepOceanSynth();
+    this.startWarmFireplaceSynth();
     this.startBinauralAlphaSynth();
+    this.startWarmAmbientPadSynth();
   }
 
   public stop() {
@@ -132,12 +133,11 @@ export class WoodRainSynthEngine {
 
     const targetVal = Math.max(0, Math.min(1, volume));
     try {
-      gain.gain.setTargetAtTime(targetVal, ctx.currentTime, 0.05);
+      gain.gain.setTargetAtTime(targetVal, ctx.currentTime, 0.08);
     } catch (e) {
       gain.gain.value = targetVal;
     }
 
-    // If custom audio stream element
     const customAudio = this.channelAudios.get(channelId);
     if (customAudio) {
       customAudio.volume = targetVal;
@@ -149,55 +149,58 @@ export class WoodRainSynthEngine {
     }
   }
 
-  // Channel 1: Warm Organic Rain (Pink/Brown Noise + Dual Smooth Lowpass)
-  private startRainSynth() {
+  // 1. Channel: Velvet Rain (Deep filtered warm rain texture, steep 400Hz lowpass, zero harsh treble)
+  private startVelvetRainSynth() {
     if (!this.ctx || !this.masterGain) return;
 
-    const bufferSize = 2 * this.ctx.sampleRate;
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const sampleRate = this.ctx.sampleRate;
+    const bufferSize = 2 * sampleRate;
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
-    // Warm pink noise generator (pleasant, no harsh high end)
-    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0;
+    // Warm deep brown noise algorithm (pure gentle rumble)
+    let lastOut = 0.0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      b0 = 0.99886 * b0 + white * 0.0555179;
-      b1 = 0.99332 * b1 + white * 0.0750759;
-      b2 = 0.96900 * b2 + white * 0.1538520;
-      b3 = 0.86650 * b3 + white * 0.3104856;
-      b4 = 0.55000 * b4 + white * 0.5329522;
-      b5 = -0.7616 * b5 - white * 0.0168980;
-      output[i] = (b0 + b1 + b2 + b3 + b4 + b5) * 0.12;
+      output[i] = (lastOut + 0.018 * white) / 1.018;
+      lastOut = output[i];
+      output[i] *= 2.2;
     }
 
-    const whiteSource = this.ctx.createBufferSource();
-    whiteSource.buffer = noiseBuffer;
-    whiteSource.loop = true;
+    const source = this.ctx.createBufferSource();
+    source.buffer = noiseBuffer;
+    source.loop = true;
 
-    // Soothing lowpass filter (removes any hiss/screech above 750Hz)
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 750;
-    filter.Q.value = 1.0;
+    // Dual cascade lowpass filters for ultra-soft texture
+    const filter1 = this.ctx.createBiquadFilter();
+    filter1.type = 'lowpass';
+    filter1.frequency.value = 380;
+    filter1.Q.value = 0.7;
+
+    const filter2 = this.ctx.createBiquadFilter();
+    filter2.type = 'lowpass';
+    filter2.frequency.value = 420;
+    filter2.Q.value = 0.5;
 
     const channelGain = this.ctx.createGain();
     channelGain.gain.value = 0.0;
     this.channelGains.set('rain', channelGain);
 
-    whiteSource.connect(filter);
-    filter.connect(channelGain);
+    source.connect(filter1);
+    filter1.connect(filter2);
+    filter2.connect(channelGain);
     channelGain.connect(this.masterGain);
 
-    whiteSource.start();
+    source.start();
     this.activeGenerators.push({
       stop: () => {
-        try { whiteSource.stop(); } catch (e) {}
+        try { source.stop(); } catch (e) {}
       }
     });
   }
 
-  // Channel 2: Organic Forest Wood Drops (Gentle Marimba Rain on Leaves & Wood)
-  private startWoodRainSynth() {
+  // 2. Channel: Forest Wood Rain (Soft organic marimba drops on moss & pine)
+  private startForestWoodRainSynth() {
     if (!this.ctx || !this.masterGain) return;
 
     const channelGain = this.ctx.createGain();
@@ -210,29 +213,34 @@ export class WoodRainSynthEngine {
     const triggerDroplet = () => {
       if (!this.ctx || !isTimerActive) return;
 
-      // Soft marimba resonance: 380Hz to 620Hz (calm, warm wood tones)
-      const freq = 380 + Math.random() * 240;
+      // Soft pentatonic frequencies (329Hz, 392Hz, 440Hz, 523Hz, 659Hz - E4, G4, A4, C5, E5)
+      const pentatonic = [329.6, 392.0, 440.0, 523.2, 587.3, 659.2];
+      const freq = pentatonic[Math.floor(Math.random() * pentatonic.length)];
+
       const osc = this.ctx.createOscillator();
       const dropGain = this.ctx.createGain();
+      const dropFilter = this.ctx.createBiquadFilter();
 
       osc.type = 'sine';
+      dropFilter.type = 'lowpass';
+      dropFilter.frequency.value = 600;
+
       const now = this.ctx.currentTime;
       osc.frequency.setValueAtTime(freq, now);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.7, now + 0.05);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.85, now + 0.08);
 
-      // Smooth attack & organic wooden decay
       dropGain.gain.setValueAtTime(0, now);
-      dropGain.gain.linearRampToValueAtTime(0.08 + Math.random() * 0.08, now + 0.005);
-      dropGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06 + Math.random() * 0.04);
+      dropGain.gain.linearRampToValueAtTime(0.045 + Math.random() * 0.035, now + 0.008);
+      dropGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12 + Math.random() * 0.06);
 
-      osc.connect(dropGain);
+      osc.connect(dropFilter);
+      dropFilter.connect(dropGain);
       dropGain.connect(channelGain);
 
       osc.start(now);
-      osc.stop(now + 0.12);
+      osc.stop(now + 0.22);
 
-      // Variable natural droplet spacing (80ms to 240ms)
-      const nextDelay = 80 + Math.random() * 160;
+      const nextDelay = 120 + Math.random() * 260;
       setTimeout(triggerDroplet, nextDelay);
     };
 
@@ -245,21 +253,21 @@ export class WoodRainSynthEngine {
     });
   }
 
-  // Channel 3: Ocean Waves (Brown Noise + Slow Tidal LFO Modulation)
-  private startOceanSynth() {
+  // 3. Channel: Deep Ocean Waves (Gentle tidal swells modulated by slow 0.06Hz sine wave)
+  private startDeepOceanSynth() {
     if (!this.ctx || !this.masterGain) return;
 
-    const bufferSize = 2 * this.ctx.sampleRate;
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const sampleRate = this.ctx.sampleRate;
+    const bufferSize = 2 * sampleRate;
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
-    // Brown noise generator (deep, warm rumble)
     let lastOut = 0.0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      output[i] = (lastOut + (0.02 * white)) / 1.02;
+      output[i] = (lastOut + 0.015 * white) / 1.015;
       lastOut = output[i];
-      output[i] *= 3.5;
+      output[i] *= 3.0;
     }
 
     const source = this.ctx.createBufferSource();
@@ -268,14 +276,15 @@ export class WoodRainSynthEngine {
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 350;
+    filter.frequency.value = 240;
+    filter.Q.value = 0.8;
 
     const lfo = this.ctx.createOscillator();
     lfo.type = 'sine';
-    lfo.frequency.value = 0.08; // 12-second wave surge cycle
+    lfo.frequency.value = 0.06; // 16-second organic wave swell cycle
 
     const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 200; // Modulate filter between 150Hz and 550Hz
+    lfoGain.gain.value = 140; // Modulate between 100Hz and 380Hz
 
     lfo.connect(filter.frequency);
 
@@ -300,8 +309,8 @@ export class WoodRainSynthEngine {
     });
   }
 
-  // Channel 4: Warm Fireplace & Gentle Crackles
-  private startFireplaceSynth() {
+  // 4. Channel: Cozy Fireplace & Warm Hearth (Deep sub-warmth + gentle soft embers)
+  private startWarmFireplaceSynth() {
     if (!this.ctx || !this.masterGain) return;
 
     const channelGain = this.ctx.createGain();
@@ -311,43 +320,48 @@ export class WoodRainSynthEngine {
 
     let isTimerActive = true;
 
-    // Base warm hearth hum
+    // Soothing hearth drone (55Hz gentle sub tone)
     const humOsc = this.ctx.createOscillator();
     humOsc.type = 'sine';
-    humOsc.frequency.value = 65;
+    humOsc.frequency.value = 55;
     const humGain = this.ctx.createGain();
-    humGain.gain.value = 0.06;
+    humGain.gain.value = 0.035;
     humOsc.connect(humGain);
     humGain.connect(channelGain);
     humOsc.start();
 
-    // Fireplace organic wood pops
-    const triggerPop = () => {
+    // Gentle soft ember pops (smooth triangle with fast lowpass decay)
+    const triggerEmber = () => {
       if (!this.ctx || !isTimerActive) return;
 
       const osc = this.ctx.createOscillator();
       const popGain = this.ctx.createGain();
+      const popFilter = this.ctx.createBiquadFilter();
 
       osc.type = 'triangle';
+      popFilter.type = 'lowpass';
+      popFilter.frequency.value = 350;
+
       const now = this.ctx.currentTime;
-      osc.frequency.setValueAtTime(120 + Math.random() * 180, now);
-      osc.frequency.exponentialRampToValueAtTime(40, now + 0.04);
+      osc.frequency.setValueAtTime(80 + Math.random() * 90, now);
+      osc.frequency.exponentialRampToValueAtTime(35, now + 0.035);
 
       popGain.gain.setValueAtTime(0, now);
-      popGain.gain.linearRampToValueAtTime(0.04 + Math.random() * 0.04, now + 0.002);
-      popGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+      popGain.gain.linearRampToValueAtTime(0.025 + Math.random() * 0.02, now + 0.002);
+      popGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
 
-      osc.connect(popGain);
+      osc.connect(popFilter);
+      popFilter.connect(popGain);
       popGain.connect(channelGain);
 
       osc.start(now);
-      osc.stop(now + 0.05);
+      osc.stop(now + 0.045);
 
-      const nextDelay = 150 + Math.random() * 450;
-      setTimeout(triggerPop, nextDelay);
+      const nextDelay = 220 + Math.random() * 550;
+      setTimeout(triggerEmber, nextDelay);
     };
 
-    triggerPop();
+    triggerEmber();
 
     this.activeGenerators.push({
       stop: () => {
@@ -357,7 +371,7 @@ export class WoodRainSynthEngine {
     });
   }
 
-  // Channel 5: Binaural Alpha Waves (136.1Hz Cosmic Om + 10Hz Alpha Focus, Pure Harmonic Sines)
+  // 5. Channel: Binaural Alpha & Theta Sleep Frequency (136.1Hz Cosmic Om + 10Hz Alpha / 6Hz Theta Focus)
   private startBinauralAlphaSynth() {
     if (!this.ctx || !this.masterGain) return;
 
@@ -366,15 +380,13 @@ export class WoodRainSynthEngine {
     this.channelGains.set('binaural', channelGain);
     channelGain.connect(this.masterGain);
 
-    const baseFreq = 136.1; // Soothing Om Frequency
-    const alphaFreq = 10.0; // 10Hz Alpha Focus
+    const baseFreq = 136.1; // Soothing 136.1Hz Frequency (Om tone)
+    const alphaFreq = 8.0;   // 8Hz Alpha / Theta bridge for deep sleep & focus
 
-    // Left Ear
     const oscLeft = this.ctx.createOscillator();
     oscLeft.type = 'sine';
     oscLeft.frequency.value = baseFreq;
 
-    // Right Ear (+10Hz difference)
     const oscRight = this.ctx.createOscillator();
     oscRight.type = 'sine';
     oscRight.frequency.value = baseFreq + alphaFreq;
@@ -382,17 +394,21 @@ export class WoodRainSynthEngine {
     const pannerLeft = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
     const pannerRight = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
 
+    const sineGain = this.ctx.createGain();
+    sineGain.gain.value = 0.12;
+
     if (pannerLeft && pannerRight) {
-      pannerLeft.pan.value = -0.8;
-      pannerRight.pan.value = 0.8;
+      pannerLeft.pan.value = -0.7;
+      pannerRight.pan.value = 0.7;
       oscLeft.connect(pannerLeft);
-      pannerLeft.connect(channelGain);
+      pannerLeft.connect(sineGain);
       oscRight.connect(pannerRight);
-      pannerRight.connect(channelGain);
+      pannerRight.connect(sineGain);
     } else {
-      oscLeft.connect(channelGain);
-      oscRight.connect(channelGain);
+      oscLeft.connect(sineGain);
+      oscRight.connect(sineGain);
     }
+    sineGain.connect(channelGain);
 
     oscLeft.start();
     oscRight.start();
@@ -403,6 +419,50 @@ export class WoodRainSynthEngine {
           oscLeft.stop();
           oscRight.stop();
         } catch (e) {}
+      }
+    });
+  }
+
+  // 6. Channel: Warm Ambient Sleep Pad (432Hz Major 7th Ethereal Drone for Bedtime & Soundtracks)
+  private startWarmAmbientPadSynth() {
+    if (!this.ctx || !this.masterGain) return;
+
+    const channelGain = this.ctx.createGain();
+    channelGain.gain.value = 0.0;
+    this.channelGains.set('pad', channelGain);
+    channelGain.connect(this.masterGain);
+
+    // Warm chords (A2 110Hz, E3 164.8Hz, A3 220Hz, C#4 277.2Hz)
+    const freqs = [108.0, 162.0, 216.0, 270.0];
+    const oscs: OscillatorNode[] = [];
+
+    const padFilter = this.ctx.createBiquadFilter();
+    padFilter.type = 'lowpass';
+    padFilter.frequency.value = 350;
+
+    const padGain = this.ctx.createGain();
+    padGain.gain.value = 0.08;
+
+    freqs.forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      // Slight detune for analog shimmer
+      osc.detune.value = (idx % 2 === 0 ? 3 : -3);
+      osc.connect(padFilter);
+      osc.start();
+      oscs.push(osc);
+    });
+
+    padFilter.connect(padGain);
+    padGain.connect(channelGain);
+
+    this.activeGenerators.push({
+      stop: () => {
+        oscs.forEach(osc => {
+          try { osc.stop(); } catch (e) {}
+        });
       }
     });
   }
@@ -435,9 +495,9 @@ export class WoodRainSynthEngine {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, now);
 
-        const initialVol = 0.2 / (idx + 1);
+        const initialVol = 0.15 / (idx + 1);
         gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(initialVol, now + 0.05);
+        gain.gain.linearRampToValueAtTime(initialVol, now + 0.04);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5 + idx * 0.3);
 
         osc.connect(gain);
@@ -452,4 +512,11 @@ export class WoodRainSynthEngine {
   }
 }
 
+function ctxResume(ctx: AudioContext) {
+  try {
+    ctx.resume().catch(() => {});
+  } catch {}
+}
+
 export const woodRainSynth = new WoodRainSynthEngine();
+

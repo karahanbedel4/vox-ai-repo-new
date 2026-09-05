@@ -90,6 +90,10 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
           }
         }
 
+        const isHeavyOperation = cleanEndpoint.startsWith('/api/summarize') || cleanEndpoint.startsWith('/api/tts');
+        const connectTimeoutMs = isHeavyOperation ? 15000 : 8000;
+        const readTimeoutMs = isHeavyOperation ? 45000 : 20000;
+
         const nativeRes = await CapacitorHttp.request({
           url: url,
           method: options?.method || 'GET',
@@ -99,8 +103,8 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
             ...(options?.headers as Record<string, string>)
           },
           data: bodyData,
-          connectTimeout: 8000,
-          readTimeout: 20000
+          connectTimeout: connectTimeoutMs,
+          readTimeout: readTimeoutMs
         });
 
         const status = nativeRes.status || 200;
@@ -128,8 +132,10 @@ export async function safeApiFetch(endpoint: string, options?: RequestInit): Pro
 
     // 2. Standard fetch with abort timeout
     try {
+      const isHeavy = cleanEndpoint.startsWith('/api/summarize') || cleanEndpoint.startsWith('/api/tts');
+      const timeoutMs = isHeavy ? 45000 : 15000;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       const res = await fetch(url, {
         ...options,

@@ -365,32 +365,68 @@ export const ListenTab: React.FC<ListenTabProps> = ({
               </div>
             </div>
 
-            {/* Top Action Pills (Sıralı Çalma: Açık) - NO MIXER BUTTON AS REQUESTED */}
-            <div className="flex items-center gap-2 pt-0.5">
+            {/* Top Action Pills: Loop, Sleep Timer, Pomodoro */}
+            <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                onClick={() => {
+                  triggerHaptic();
+                  focusAudioService.setLooping(!focusState.isLooping);
+                }}
+                className={`px-2.5 py-1 sm:py-1.5 rounded-full border text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-sm shrink-0 ${
+                  focusState.isLooping
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-surface-variant text-on-surface-variant border-card-border'
+                }`}
+              >
+                <Repeat1 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Döngü: {focusState.isLooping ? 'Açık' : 'Kapalı'}</span>
+              </button>
+
               <button
                 onClick={() => {
                   triggerHaptic();
                   focusAudioService.setSequential(!focusState.isSequential);
                 }}
-                className={`px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm ${
+                className={`px-2.5 py-1 sm:py-1.5 rounded-full border text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-sm shrink-0 ${
                   focusState.isSequential
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-emerald-500/10'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                     : 'bg-surface-variant text-on-surface-variant border-card-border'
                 }`}
               >
                 <Repeat className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Sıralı Çalma: {focusState.isSequential ? 'Açık' : 'Kapalı'}</span>
+                <span>Sıralı: {focusState.isSequential ? 'Açık' : 'Kapalı'}</span>
               </button>
+
+              {/* Sleep Timer Selector */}
+              <div className="relative shrink-0">
+                <select
+                  value={focusState.sleepTimerMinutes || ''}
+                  onChange={(e) => {
+                    triggerHaptic();
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    focusAudioService.setSleepTimer(val);
+                  }}
+                  className={`px-2.5 py-1 sm:py-1.5 rounded-full border text-[11px] font-bold appearance-none bg-surface-variant text-on-surface-variant border-card-border cursor-pointer focus:outline-none focus:border-emerald-400 ${
+                    focusState.sleepTimerMinutes ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : ''
+                  }`}
+                >
+                  <option value="" className="bg-surface-container text-on-surface">Uyku Zamanlayıcı: Kapalı</option>
+                  <option value="15" className="bg-surface-container text-on-surface">🌙 15 Dk Sonra Kapat</option>
+                  <option value="30" className="bg-surface-container text-on-surface">🌙 30 Dk Sonra Kapat</option>
+                  <option value="45" className="bg-surface-container text-on-surface">🌙 45 Dk Sonra Kapat</option>
+                  <option value="60" className="bg-surface-container text-on-surface">🌙 60 Dk Sonra Kapat</option>
+                </select>
+              </div>
 
               <button
                 onClick={() => {
                   triggerHaptic();
                   setIsPomodoroOpen(true);
                 }}
-                className="px-3 py-1 sm:py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] sm:text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-sm"
+                className="px-2.5 py-1 sm:py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm shrink-0"
               >
                 <Timer className="w-3.5 h-3.5 text-amber-400" />
-                <span>Pomodoro (25 Dk)</span>
+                <span>Pomodoro</span>
               </button>
             </div>
           </div>
